@@ -1,0 +1,314 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0a0907">
+<title>Trains: Surbiton and Waterloo</title>
+<style>
+  :root {
+    --ink: #0a0907;          /* board black */
+    --panel: #12100c;
+    --rule: #2b2417;
+    --amber: #ffb000;        /* lit segments */
+    --amber-dim: #a9772a;
+    --white: #f4ecdc;
+    --late: #ff8a3d;
+    --cancel: #ff5a4d;
+    --font: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  }
+  * { box-sizing: border-box; }
+  html { background: var(--ink); }
+  body {
+    margin: 0; min-height: 100dvh; color: var(--amber); font-family: var(--font);
+    font-size: clamp(14px, 2.9vw, 18px); line-height: 1.35;
+    padding: max(10px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right))
+             max(14px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
+    -webkit-text-size-adjust: 100%;
+  }
+  main { max-width: 760px; margin: 0 auto; }
+  button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+  :focus-visible { outline: 2px solid var(--white); outline-offset: 2px; }
+
+  /* tabs */
+  .tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .tab {
+    padding: 12px 8px; border: 1px solid var(--rule); background: var(--panel);
+    color: var(--amber-dim); text-align: center; border-radius: 3px;
+  }
+  .tab[aria-selected="true"] { color: var(--ink); background: var(--amber); border-color: var(--amber); font-weight: 700; }
+
+  /* board header */
+  .head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 16px 2px 8px; }
+  .head h1 { margin: 0; font-size: 1.15em; font-weight: 700; color: var(--white); }
+  .clock { font-size: 1.5em; font-weight: 700; font-variant-numeric: tabular-nums; text-shadow: 0 0 8px rgba(255,176,0,.45); }
+
+  .notice { margin: 6px 0; padding: 8px 10px; border-left: 3px solid var(--late); background: var(--panel); color: var(--white); font-size: .9em; }
+  .notice.err { border-color: var(--cancel); }
+  .notice.demo { border-color: var(--amber); }
+
+  /* column heads */
+  .cols, .row { display: grid; grid-template-columns: 4.6em 1fr 2.6em 4.6em; column-gap: 8px; align-items: start; }
+  .cols { padding: 6px 10px; color: var(--amber-dim); font-size: .8em; border-bottom: 1px solid var(--rule); }
+  .cols span:nth-child(3), .cols span:nth-child(4) { text-align: right; }
+
+  ul.list { list-style: none; margin: 0; padding: 0; }
+  .svc { border-bottom: 1px solid var(--rule); }
+  .row { width: 100%; padding: 12px 10px; text-align: left; grid-template-areas: "dep dest plat arr" "dep stat stat stat"; row-gap: 3px; }
+  .row:hover { background: var(--panel); }
+  .dep { grid-area: dep; display: flex; flex-direction: column; }
+  .dest { grid-area: dest; min-width: 0; }
+  .plat { grid-area: plat; text-align: right; }
+  .arr { grid-area: arr; text-align: right; display: flex; flex-direction: column; }
+  .stat { grid-area: stat; display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: .88em; }
+
+  .t { font-size: 1.45em; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: .02em; text-shadow: 0 0 7px rgba(255,176,0,.35); line-height: 1.1; }
+  .arr .t { font-size: 1.15em; }
+  .sub { font-size: .8em; color: var(--amber-dim); }
+  .exp { font-size: .82em; color: var(--late); font-variant-numeric: tabular-nums; }
+  .dest b { display: block; color: var(--white); font-weight: 700; font-size: 1.05em; overflow-wrap: anywhere; }
+  .plat b { font-size: 1.2em; }
+
+  .svc[data-status="late"] .dep .t, .svc[data-status="delayed"] .dep .t { color: var(--late); text-shadow: none; }
+  .svc[data-status="late"] .stat .s, .svc[data-status="delayed"] .stat .s { color: var(--late); }
+  .svc[data-status="cancelled"] .t { color: var(--cancel); text-decoration: line-through; text-shadow: none; }
+  .svc[data-status="cancelled"] .stat .s, .svc[data-status="part_cancelled"] .stat .s { color: var(--cancel); font-weight: 700; }
+  .svc[data-status="cancelled"] .dest b { text-decoration: line-through; color: var(--amber-dim); }
+  .svc.gone .row { opacity: .5; }
+  .s { font-weight: 700; }
+
+  .calls { padding: 4px 10px 14px calc(10px + 4.6em + 8px); }
+  .calls ol { list-style: none; margin: 0; padding: 0 0 0 14px; border-left: 2px solid var(--rule); }
+  .calls li { display: flex; gap: 12px; padding: 3px 0; font-size: .92em; }
+  .calls li .ct { width: 3.6em; font-variant-numeric: tabular-nums; color: var(--amber-dim); }
+  .calls li.end { color: var(--white); font-weight: 700; }
+  .calls li.x { color: var(--cancel); text-decoration: line-through; }
+  .calls .why { margin: 6px 0 0; font-size: .88em; color: var(--white); }
+
+  /* pager */
+  .pager { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 14px; }
+  .pager button { padding: 13px 8px; border: 1px solid var(--amber-dim); border-radius: 3px; color: var(--amber); }
+  .pager button:disabled { opacity: .3; cursor: default; }
+  .pager button:not(:disabled):hover { background: var(--panel); }
+
+  .foot { margin-top: 14px; font-size: .78em; color: var(--amber-dim); line-height: 1.5; }
+  .empty { padding: 28px 10px; color: var(--white); }
+  .load { padding: 28px 10px; color: var(--amber-dim); }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .calls.fresh { animation: open .16s ease-out; }
+    @keyframes open { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: none; } }
+  }
+  @media (max-width: 360px) { .cols, .row { grid-template-columns: 4.1em 1fr 2.2em 4.1em; } .calls { padding-left: calc(10px + 4.1em + 8px); } }
+</style>
+</head>
+<body>
+<main>
+  <div class="tabs" role="tablist" aria-label="Route">
+    <button class="tab" role="tab" id="tab-out" data-route="out" aria-selected="true" aria-controls="panel">Surbiton to Waterloo</button>
+    <button class="tab" role="tab" id="tab-back" data-route="back" aria-selected="false" aria-controls="panel">Waterloo to Surbiton</button>
+  </div>
+
+  <section id="panel" role="tabpanel" aria-labelledby="tab-out">
+    <div class="head">
+      <h1 id="title">Surbiton to London Waterloo</h1>
+      <div class="clock" id="clock" aria-label="Time now">--:--</div>
+    </div>
+    <div id="notices"></div>
+    <div class="cols" aria-hidden="true"><span>Leaves</span><span>To</span><span>Plat</span><span>Arrives</span></div>
+    <ul class="list" id="list"></ul>
+    <div class="pager">
+      <button id="prev" type="button">Earlier trains</button>
+      <button id="next" type="button">Later trains</button>
+    </div>
+    <p class="foot" id="foot"></p>
+  </section>
+</main>
+
+<script>
+(() => {
+  "use strict";
+  const REFRESH_MS = 30000;
+  const routes = {
+    out:  { stack: [0], data: null, open: new Set() },
+    back: { stack: [0], data: null, open: new Set() },
+  };
+  let current = new URLSearchParams(location.search).get("route") === "back" ? "back" : "out";
+  let timer = null, inflight = 0, justOpened = null;
+
+  const $ = (id) => document.getElementById(id);
+  const el = (tag, cls, text) => {
+    const n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text != null) n.textContent = text;
+    return n;
+  };
+
+  const londonTime = () => new Intl.DateTimeFormat("en-GB", {
+    hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Europe/London" }).format(new Date());
+  const tick = () => { $("clock").textContent = londonTime(); };
+
+  function statusText(s) {
+    switch (s.status) {
+      case "on_time": return s.in_min < -1 ? "Departed" : "On time";
+      case "late": return `${s.delay_min} min late`;
+      case "delayed": return "Delayed";
+      case "cancelled": return "Cancelled";
+      case "part_cancelled": return "Will not reach " + (routeTo() || "the destination");
+      default: return "";
+    }
+  }
+  const routeTo = () => routes[current].data && routes[current].data.to;
+
+  function renderStops(s) {
+    const box = el("div", "calls" + (justOpened === s.id ? " fresh" : ""));
+    box.id = "calls-" + s.id.replace(/[^A-Za-z0-9_-]/g, "_");
+    const ol = el("ol");
+    s.stops.forEach((p, i) => {
+      const li = el("li", (i === s.stops.length - 1 ? "end " : "") + (p.cancelled ? "x" : ""));
+      li.append(el("span", "ct", p.expected || p.planned || "--:--"), el("span", "cn", p.name));
+      if (p.expected) li.lastChild.append(document.createTextNode(` (was ${p.planned})`));
+      ol.append(li);
+    });
+    if (!s.stops.length) ol.append(el("li", null, "No stops listed for this service."));
+    box.append(ol);
+    if (s.reason) box.append(el("p", "why", s.reason));
+    return box;
+  }
+
+  function renderService(s, state) {
+    const li = el("li", "svc" + (s.in_min < -1 && s.status === "on_time" ? " gone" : ""));
+    li.dataset.status = s.status;
+    const btn = el("button", "row");
+    btn.type = "button";
+    const open = state.open.has(s.id);
+    btn.setAttribute("aria-expanded", String(open));
+    if (open) btn.setAttribute("aria-controls", "calls-" + s.id.replace(/[^A-Za-z0-9_-]/g, "_"));
+
+    const dep = el("span", "dep");
+    dep.append(el("span", "t", s.planned));
+    if (s.expected && s.status !== "cancelled") dep.append(el("span", "exp", "exp " + s.expected));
+
+    const dest = el("span", "dest");
+    dest.append(el("b", null, s.destination || "Unknown"));
+    const bits = [];
+    if (s.operator) bits.push(s.operator);
+    if (s.length) bits.push(s.length + " cars");
+    bits.push(s.stop_count === 0 ? "non-stop" : s.stop_count + (s.stop_count === 1 ? " stop" : " stops"));
+    dest.append(el("span", "sub", bits.join(", ")));
+
+    const plat = el("span", "plat");
+    plat.append(el("b", null, s.platform || "-"));
+
+    const arr = el("span", "arr");
+    if (s.arrival && s.arrival.planned) {
+      arr.append(el("span", "t", s.arrival.planned));
+      if (s.arrival.expected && !s.arrival.cancelled) arr.append(el("span", "exp", "exp " + s.arrival.expected));
+    } else {
+      arr.append(el("span", "t", "--:--"));
+    }
+
+    const stat = el("span", "stat");
+    stat.append(el("span", "s", statusText(s)));
+    stat.append(el("span", "sub", open ? "Hide stops" : "Show stops"));
+
+    btn.append(dep, dest, plat, arr, stat);
+    li.append(btn);
+    if (open) li.append(renderStops(s));
+
+    btn.addEventListener("click", () => {
+      if (state.open.has(s.id)) state.open.delete(s.id); else { state.open.add(s.id); justOpened = s.id; }
+      render();
+      justOpened = null;
+    });
+    return li;
+  }
+
+  function render() {
+    const state = routes[current], d = state.data;
+    document.querySelectorAll(".tab").forEach((t) => {
+      const on = t.dataset.route === current;
+      t.setAttribute("aria-selected", String(on));
+    });
+    $("panel").setAttribute("aria-labelledby", "tab-" + current);
+    $("title").textContent = d ? d.title : (current === "out" ? "Surbiton to London Waterloo" : "London Waterloo to Surbiton");
+
+    const notices = $("notices"); notices.replaceChildren();
+    const list = $("list"); list.replaceChildren();
+    if (!d) { list.append(el("li", "load", "Loading trains")); setPager(null); return; }
+
+    if (d.mode === "demo") notices.append(el("div", "notice demo", "Demo data. These are not real trains. Set RAIL_DATA_API_KEY on the server to see live times."));
+    if (d.error) notices.append(el("div", "notice err", d.error + (d.stale ? " Showing the last update." : "")));
+    (d.messages || []).forEach((m) => { if (!(d.mode === "demo" && m.startsWith("Demo data"))) notices.append(el("div", "notice", m)); });
+
+    if (!d.services.length && !d.error) {
+      list.append(el("li", "empty", state.stack[state.stack.length - 1] > 0
+        ? "No more direct trains in the next two hours."
+        : "No direct trains in this window. Try Later trains."));
+    }
+    d.services.forEach((s) => list.append(renderService(s, state)));
+    setPager(d);
+
+    const when = new Date(d.generated_at);
+    const t = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false, timeZone: "Europe/London" }).format(when);
+    $("foot").textContent = `Updated ${t}. Direct trains only. Times from National Rail Darwin.`;
+  }
+
+  function setPager(d) {
+    const state = routes[current];
+    $("prev").disabled = !d || (state.stack.length === 1 && state.stack[0] < 0);
+    $("next").disabled = !d || !d.has_next;
+  }
+
+  async function load(route) {
+    const state = routes[route];
+    const offset = state.stack[state.stack.length - 1];
+    const id = ++inflight;
+    try {
+      const r = await fetch(`api/board?route=${route}&offset=${offset}&n=7`, { cache: "no-store" });
+      const body = await r.json();
+      if (!r.ok) throw new Error(body.error || `HTTP ${r.status}`);
+      if (id !== inflight && route === current) return;   // a newer request superseded this one
+      state.data = body;
+    } catch (e) {
+      state.data = Object.assign({}, state.data || { title: "", services: [], messages: [], has_next: false, mode: "live", generated_at: new Date().toISOString() },
+        { error: "Could not load trains: " + e.message + ".", stale: !!state.data });
+    }
+    if (route === current) render();
+  }
+
+  function switchTo(route) {
+    current = route;
+    history.replaceState(null, "", route === "back" ? "?route=back" : location.pathname);
+    render();
+    load(route);
+  }
+
+  document.querySelectorAll(".tab").forEach((t) => t.addEventListener("click", () => switchTo(t.dataset.route)));
+  document.querySelectorAll(".tab").forEach((t) => t.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+      const next = t.dataset.route === "out" ? "back" : "out";
+      switchTo(next); $("tab-" + next).focus();
+    }
+  }));
+
+  $("next").addEventListener("click", () => {
+    const s = routes[current];
+    if (s.data && s.data.has_next) { s.stack.push(s.data.next_offset); s.data = null; render(); load(current); }
+  });
+  $("prev").addEventListener("click", () => {
+    const s = routes[current];
+    if (s.stack.length > 1) s.stack.pop(); else s.stack = [-45];
+    s.data = null; render(); load(current);
+  });
+
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) { tick(); load(current); } });
+  tick(); setInterval(tick, 10000);
+  render(); load(current);
+  timer = setInterval(() => { if (!document.hidden) load(current); }, REFRESH_MS);
+})();
+</script>
+</body>
+</html>
