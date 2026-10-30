@@ -5,7 +5,15 @@ import os
 from pathlib import Path
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    SecretStr,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
 
 STATIONS: dict[str, str] = json.loads(
     (Path(__file__).parent / "data" / "stations.json").read_text(encoding="utf-8")
@@ -101,11 +109,36 @@ class Settings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     data_path: Path = Path("/data")
-    provider: Literal["demo", "rail_data"] = "demo"
+    provider: Literal["auto", "demo", "rail_data"] = "auto"
+    api_key: SecretStr = Field(default=SecretStr(""), repr=False)
+    api_key_file: Path | None = None
+    base_url: str = ""
+    allowed_hosts: tuple[str, ...] = ("api1.raildata.org.uk",)
+    admin_token: SecretStr = Field(default=SecretStr(""), repr=False)
+    cache_ttl: int = Field(default=30, ge=5, le=300)
+    refresh_seconds: int = Field(default=30, ge=5, le=300)
 
     @classmethod
     def from_environment(cls) -> "Settings":
+        key_file = os.environ.get("RAIL_DATA_API_KEY_FILE", "").strip()
         return cls(
             data_path=Path(os.environ.get("RAIL_DATA_PATH", "/data")),
-            provider=os.environ.get("RAIL_PROVIDER", "demo"),
+            provider=os.environ.get("RAIL_PROVIDER", "auto"),
+            api_key=SecretStr(os.environ.get("RAIL_DATA_API_KEY", "").strip()),
+            api_key_file=Path(key_file) if key_file else None,
+            base_url=os.environ.get("RAIL_DATA_BASE_URL", "").strip(),
+            allowed_hosts=tuple(
+                host.strip().lower()
+                for host in os.environ.get("RAIL_DATA_ALLOWED_HOSTS", "api1.raildata.org.uk").split(
+                    ","
+                )
+                if host.strip()
+            ),
+            admin_token=SecretStr(os.environ.get("ADMIN_TOKEN", "")),
+            cache_ttl=os.environ.get("RAIL_CACHE_TTL", "30"),
+            refresh_seconds=os.environ.get("RAIL_REFRESH_SECONDS", "30"),
         )
+
+
+class RouteWrite(Route):
+    add_return_journey: bool = False

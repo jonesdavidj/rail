@@ -1,6 +1,6 @@
 # ADR 001: One Python service and a provider boundary
 
-Status: accepted for phase 1.
+Status: accepted for phase 1; live-provider stub superseded by ADR 004.
 
 Use FastAPI, Pydantic and one Uvicorn worker, matching existing app repos. Serve
 minimal static assets from the same process. Keep raw feed parsing outside HTTP

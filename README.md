@@ -1,181 +1,202 @@
 # Rail
 
-A small UK departure-board service for a home server. Phase 1 runs entirely on
-clearly labelled synthetic Demo data; it does not call RDM or use an API key.
+A small home-server departure board. Phase 2 adds the RDM REST provider, memory
+caching, station search and persisted route management. The page remains a minimal
+API preview; the final departure-board UI is a later phase.
 
-## Run locally
+## Run
 
-Requires Python 3.12 with system timezone data (the Python slim image includes it).
+Python 3.12 and system timezone data are required (included in the Docker image).
 
 ```sh
 python -m venv .venv
 . .venv/bin/activate
 pip install -r requirements-dev.txt
-RAIL_DATA_PATH="$PWD/work/data" uvicorn app.main:app --host 127.0.0.1 --port 8080 --no-access-log
+RAIL_DATA_PATH="$PWD/work/data" uvicorn app.main:app --host 127.0.0.1 --port 8080 --no-access-log --log-config app/logging.json
 ```
 
-Open http://localhost:8080 for a minimal JSON-board preview, route selector and
-Earlier/Later controls. This is an API proof page, not the final departure-board UI.
-No login is implemented. External access must go through Cloudflare Access.
+Open http://localhost:8080. With no key/file configured, `RAIL_PROVIDER=auto`
+(default) uses clearly labelled synthetic Demo boards. Demo includes delays,
+cancellations, variable lengths, missing platforms and replacement buses. It never
+represents real trains. `demo` forces Demo; `rail_data` explicitly requests live.
+An invalid configured key/base URL produces an error, never a silent Demo fallback.
 
-## Runtime route configuration
+## Live feed
 
-Configuration is loaded once at startup from `${RAIL_DATA_PATH}/routes.json`
-(default `/data/routes.json`). Restart after editing it. No user config is copied
-into the image, created at startup, or committed to Git. With a missing, unreadable,
-invalid, oversized or unsupported file the app serves the built-in SUR→WAT and
-WAT→SUR defaults and reports the fallback category on `/api/health`.
-It never replaces the original file. An explicitly empty route list stays empty.
+Set these as Portainer stack variables; `.env.example` documents the whole surface:
 
-Example file content (write this to your runtime volume, not the source tree):
+- RAIL_DATA_BASE_URL: copy the complete base ending `/LDBWS/api/20220120` from the
+  subscribed public Live Departure Board product's Specification tab. No guessed
+  default is supplied. Do not append the operation or station yourself.
+- RAIL_DATA_API_KEY: the consumer key, **or** RAIL_DATA_API_KEY_FILE: an already
+  mounted container file containing the key (readable by UID 10001). Never both.
+- RAIL_DATA_ALLOWED_HOSTS: exact comma-separated host allowlist; default
+  `api1.raildata.org.uk`. Add a different host only if the subscribed Specification
+  actually uses it. HTTPS only; no custom port, credentials, query or fragment.
+- RAIL_CACHE_TTL and RAIL_REFRESH_SECONDS: default 30; integer 5–300 seconds.
+
+The standard stack uses environment credentials. Secret-file mode requires a
+read-only file mount/deployment override (for example a Docker secret mounted at
+`/run/secrets/rail_api_key`) and RAIL_DATA_API_KEY_FILE set to that container path.
+The repository never contains the file; Compose does not create or copy it.
+Keep it readable by UID/GID 10001. Restart to reload credentials/settings.
+
+Requests use server-side `x-apikey`, no redirects, a 15-second network timeout and
+a 2,000,000-byte response limit. The timeout is urllib's connect/socket inactivity
+timeout, not a guarantee against an indefinitely slow trickle response. No key or
+raw provider exception is sent to the browser or normal logs. See the outstanding
+[contract verification and fixture inspection](docs/feed-contract.md).
+
+Cache key: (origin, destination, offset). TTL is shared across clients, concurrent
+requests coalesce, errors have retry cooldowns and stale-on-error retains the last
+good board for at most 15 minutes **from its successful fetch**. The API exposes
+`stale`, `error`, `error_code`, `cache_age_seconds` and feed `generated_at`; the
+preview labels stale boards visibly. Older boards are not served after an error.
+Only validated boards enter the cache. The cache holds up to 256 completed entries
+and is in memory only. Run one worker. See the [5-million-call budget](docs/api-budget.md).
+
+Missing or non-positive carriage counts are omitted; only the feed's `length` is
+used. Stop-specific lengths do not become departure carriage counts. No guessing.
+
+## One-request diagnostics
+
+When your key arrives, run inside the configured container:
+
+```sh
+python -m app --check
+python -m app --check --raw
+python -m app --check --route back --raw
+```
+
+Each command makes one live detailed-board request, even when the app otherwise
+runs in Demo. It prints the parsed board and optionally the first raw service;
+nonzero exit means failure. It never prints request headers or the key. Raw output
+is for deliberate local diagnostics, not general logging. The key was unavailable
+during implementation, so live subscription/field population remains untested.
+
+## Routes are runtime data
+
+Load `${RAIL_DATA_PATH}/routes.json` (default `/data/routes.json`). The default
+routes are SUR→WAT and WAT→SUR, labelled with their station names. A missing,
+unreadable, malformed, oversized or unsupported file falls back safely, without
+writing over that file; `/api/health` reports the fallback category. Explicitly
+empty routes stay empty. The API now persists edits immediately, and restart
+loads them. Manual file edits require restart. Never put this file in Git/image.
 
 ```json
 {
   "version": 1,
-  "routes": [
-    {
-      "id": "out",
-      "label": "Surbiton to London Waterloo",
-      "origin": "SUR",
-      "destination": "WAT",
-      "min_departure_minutes": 8,
-      "page_size": 7
-    },
-    {
-      "id": "back",
-      "label": "London Waterloo to Surbiton",
-      "origin": "WAT",
-      "destination": "SUR"
-    }
-  ]
+  "routes": [{
+    "id": "out",
+    "label": "Surbiton to London Waterloo",
+    "origin": "SUR",
+    "destination": "WAT",
+    "min_departure_minutes": 8,
+    "page_size": 7
+  }]
 }
 ```
 
-Limits: 0–32 routes, unique IDs (1–64 ASCII letters/digits/underscore/hyphen,
-starting with a letter/digit), visible labels of 1–100 characters without control
-characters, distinct uppercase three-letter CRS codes present in the catalogue,
-walking time 0–120 minutes (default 0), page size 1–25 (default 7), version 1 and a
-256,000-byte file limit. Unknown fields and coerced numbers/booleans are rejected.
-
-The bundled catalogue has 2,652 GB CRS entries derived from Trainline's station
-database under ODbL. See [provenance, reproduction and licence](app/data/README.md).
-Catalogue membership does not establish current service or Darwin coverage.
-Northern Ireland and station search are not delivered in phase 1.
+Limits: 0–32 routes, unique 1–64-character ASCII letter/digit/underscore/hyphen IDs
+starting with a letter/digit, visible labels up to 100 characters, distinct uppercase
+three-letter catalogue CRS codes, walking time 0–120 (default 0), page size 1–25
+(default 7), version 1 and a 256,000-byte config limit. Unknown fields, booleans or
+strings masquerading as numeric route settings are rejected.
 
 ## API
 
-- `GET /api/health`: process health, provider mode/readiness and config source/warning.
-  HTTP 200 means the process is serving; inspect `degraded` for config/provider issues.
-- `GET /api/routes`: configured route records in tab order.
-- `GET /api/board?route=out&offset=0`: normalised services, explicit `demo` flag,
-  messages, `generated_at`, `next_offset`, `earlier_offset` and `has_next`.
+| Endpoint | Behaviour |
+|---|---|
+| GET /api/health | Local responsiveness, provider configuration readiness, config source/warning and preview refresh interval; no upstream call |
+| GET /api/routes | Saved route records in order |
+| POST /api/routes | Create a route from a JSON route record; optional `add_return_journey: true`; returns complete saved list, HTTP 201 |
+| PUT /api/routes | Replace the route identified by the JSON record's `id`; same optional return flag; returns complete saved list |
+| DELETE /api/routes?id=out | Remove one saved route; returns complete saved list |
+| GET /api/stations?q=waterloo | Case-insensitive CRS/name search, code/name prefixes and word prefixes; at most 10 results |
+| GET /api/board?route=out&offset=0 | Normalised board and freshness/error metadata |
 
-Route is required. Offset must be an integer from -60 through 119 (default 0).
-Malformed, repeated and unknown parameters return 422; an unknown route returns
-404; the Rail Data stub returns 503; malformed provider data returns 502.
+An example POST body is a route object as above, with `add_return_journey: true`.
+A reverse route gets `<first 48 ID characters>-return`, a station-name label,
+reversed CRS codes and copied page-size/walking settings. An already saved return
+pair or ID conflict is rejected. Both routes are validated and atomically saved
+in one operation; neither is partially created. Edit the return's walking time
+separately if it differs. PUT uses the complete replacement record; DELETE can
+leave an intentionally empty list. Duplicate ID/return conflicts return 409,
+unknown route 404, invalid parameters/payloads 422 and persistence failure 503.
+Failed saves retain previous in-memory configuration. Concurrent writes serialise;
+updates to the same route are last-write-wins.
 
-Providers return the provisional raw Darwin shape; the normaliser returns our own
-models. Demo boards are anchored to the current London clock, with stable service
-IDs, realistic synthetic timings, late/delayed/cancelled services, absent platforms,
-formation variation and replacement buses. All displayed journeys are fictional.
-Train and bus rows are explicitly distinguished. Actual times at calling points
-are preserved as an `actual` state; unknown times never become invented estimates.
-The parser is not claimed to be validated against the current live contract.
+Route is required for a board. Offset is an integer -60..119 (default 0), unknown
+or repeated query parameters are rejected. A 120-minute window is paged by the
+prototype cursor (last displayed departure minute + 1, capped at 119). Earlier
+initially requests -45; the preview remembers previous offsets. Walking time
+filters current/future scheduled departures, not the historical Earlier window.
+These are moving windows, not snapshots; same-minute boundary trains can be
+skipped. Runtime RDM limits remain to be confirmed as documented in the contract note.
 
-## Paging
+Upstream failures have safe error codes: `authentication` (401/403 upstream),
+`rate_limit` (429), `routing` (400/404/500), `timeout`, `bad_json`, `response_size`,
+`redirect`, `connection` or `upstream`. The app returns 502/503/504 as appropriate,
+with Retry-After; upstream authentication failure is not confused with app login.
+A stale fallback remains HTTP 200 with explicit stale/error metadata.
 
-This phase intentionally follows the prototype's time-offset semantics:
+The catalogue is the approved phase-1 [Trainline GB ODbL snapshot](app/data/README.md)
+with 2,652 entries. Its licence and transformation are shipped in the image.
+Membership does not establish active service or Darwin coverage; Northern Ireland
+coverage and intermediate-destination behaviour need live review.
 
-- A board covers 120 minutes relative to the requested offset.
-- Return `page_size` rows sorted by scheduled departure and ID.
-- If another row is available, `next_offset` is the last displayed departure's
-  minutes-from-now plus one (at least the current offset plus one), capped at 119.
-- Earlier from the first page requests -45. The preview remembers offsets so
-  Earlier from a later page returns to the previous offset.
-- Walking time excludes departures closer than the configured minimum on current
-  and future pages. It does not filter the explicitly historical Earlier window.
+## Access and deployment
 
-These are moving windows, not snapshots. Minute cursors can skip another service
-at the same minute at a page boundary; no historical persistence is provided.
-The bounds mirror the prototype and are not verified RDM request limits.
+There is no app login. Remote access **must** be protected by Cloudflare Access.
+Without ADMIN_TOKEN all users who can reach the app can edit routes. Set the
+optional ADMIN_TOKEN to require `Authorization: Bearer <token>` for POST/PUT/DELETE.
+It does not affect reads and is not a substitute for Access. The preview does not
+contain a token or a route editor; use authenticated API calls for now.
 
-## Checks
+`compose.yaml` uses Portainer variables, host port 8097, a local named `rail-data`
+volume at /data, restart unless-stopped, TZ=Europe/London and linux/amd64. No NAS,
+edge-network attachment or TLS listener. Ingress stays Access → Tunnel → shared
+Caddy → minisforum.lan:8097. Keep that host port off the public internet.
+The image listens on container port 8097, runs as UID/GID 10001, and is read-only
+except /data and the /tmp tmpfs. A fresh volume inherits
+its ownership. Back up only routes.json; keep restored files readable by that UID.
+
+CI retains the merged deployment workflow: Ruff and pytest on pull requests;
+validated pushes to main build and publish Docker Hub tags `main` and
+`sha-<7-character-commit>`. Superseded runs are cancelled and jobs have a five-minute
+timeout. No Portainer webhook or automatic stack action is added. Watchtower may
+update containers tracking `main`; use an immutable SHA tag for deliberate releases.
+
+First deployment:
+
+1. Create the `rail` Docker Hub repository and configure GitHub Actions secrets
+   DOCKERHUB_USERNAME and DOCKERHUB_TOKEN with publishing permission.
+2. After merging, wait for the main workflow to publish the image.
+3. In Portainer, create a Repository stack from `jonesdavidj/rail`, branch `main`,
+   Compose path `compose.yaml`. Configure read access if the GitHub repo or image
+   is private.
+4. Set DOCKERHUB_USERNAME and RAIL_IMAGE_TAG in stack variables; `.env.example`
+   documents all names/defaults. Use the published SHA tag for a deliberate release.
+   The stack defaults to Demo; no Rail Data key is needed to start.
+5. Deploy and verify `/api/health` on host port 8097. Preserve `rail-data` on updates.
+6. For live validation, set the key and Specification base URL as Portainer variables,
+   run `python -m app --check --raw` in the container, and then select
+   RAIL_PROVIDER=auto or rail_data when ready. Do not commit or send the key in chat.
+
+## Checks and testing policy
 
 ```sh
 python -m ruff check app tests scripts/bundle_stations.py
 python -m ruff format --check app tests scripts/bundle_stations.py
 python -m pytest
-./scripts/check.sh  # additionally needs Docker Compose, Hadolint and Gitleaks
+./scripts/check.sh  # also needs Docker Compose, Hadolint and Gitleaks
 ```
 
-Tests reject network connections/DNS; fixtures and injected clocks are offline.
-Prototype test behaviours are ported with intentional corrections listed in ADR 003.
-Dependencies, including transitive dependencies, are pinned. Update pins through a PR.
-JSON application logs go to stdout with a timestamp, level, event and safe fields.
-Raw requests, query strings, authentication headers and payloads are not logged.
-Run Uvicorn with `--no-access-log` as the image does.
-
-## Deploy (demo)
-
-The app serves offline demo departure boards; live rail-data integration is not implemented.
-Use the root `compose.yaml` for Portainer on Docker Standalone. No NAS mount,
-external network, or committed `.env` is needed. The image runs as UID/GID 10001,
-with tzdata installed, on port 8097. Only `/data` (local named volume) and `/tmp`
-(tmpfs) are writable application paths; capabilities are dropped and privilege
-escalation is disabled.
-
-First deployment, in order:
-
-1. Create a Docker Hub repository named `rail` in your account (public for
-   unauthenticated Portainer pulls). Create a Docker Hub access token with write
-   permission for that repository.
-2. In this GitHub repo, Settings → Secrets and variables → Actions, add repository
-   secrets `DOCKERHUB_USERNAME` (your Docker Hub account) and `DOCKERHUB_TOKEN`
-   (the write token). These match `jonesdavidj/power-map`. Enable GitHub Actions.
-3. Push/merge this change to `main`. Wait for CI to pass and publish both
-   `docker.io/<username>/rail:main` and `:sha-<7-character-commit>`.
-4. In Portainer, choose your Docker Standalone environment → Stacks → Add stack.
-   Name it `rail`, choose Repository, enter `https://github.com/jonesdavidj/rail`,
-   reference `refs/heads/main`, and Compose path `compose.yaml`. If the GitHub repo
-   is private, configure repository authentication with read access. If the Docker
-   Hub image is private, first add authenticated Docker Hub registry access in
-   Portainer and select it for this stack.
-5. In stack environment variables, set `DOCKERHUB_USERNAME` to the account from
-   step 1. Leave `RAIL_DATA_API_KEY` empty. All other variables are optional:
-
-   | Variable | Default |
-   | --- | --- |
-   | `DOCKERHUB_USERNAME` | `jonesdavidj` (override if different) |
-   | `RAIL_IMAGE_TAG` | `main` |
-   | `RAIL_CONTAINER_NAME` | `rail` |
-   | `RAIL_RESTART_POLICY` | `unless-stopped` |
-   | `TZ` | `Europe/London` |
-   | `RAIL_HOST_PORT` | `8097` |
-   | `RAIL_DATA_VOLUME` | `rail-data` |
-   | `RAIL_TMP_SIZE` | `16m` |
-   | `RAIL_READ_ONLY` | `true` |
-   | `RAIL_PROVIDER` | `demo` |
-   | `RAIL_DATA_PATH` | `/data` |
-   | `RAIL_DATA_API_KEY` | empty; no key needed for demo |
-
-   `.env.example` documents the same variables; do not commit a `.env`.
-   Keep the security defaults. Port 8097 must be available on the Docker host.
-6. Deploy the stack. Docker creates the local `rail-data` volume automatically;
-   a new volume inherits `/data` ownership from the image. Verify container `rail`
-   becomes healthy and `http://<docker-host>:8097/api/health` returns
-   JSON containing `"ok": true`, `"mode": "demo"` and `"demo": true`.
-   Open `http://<docker-host>:8097/` for the demo board. On later updates,
-   pull/redeploy the stack to refresh `main`, or set `RAIL_IMAGE_TAG` to a published
-   `sha-…` tag for an exact version. Do not delete the volume during updates.
-
-CI runs only Ruff and pytest on pull requests (plus checkout/tool setup). Pushes
-to `main` run the same checks, then one cached Docker build/push. The target is
-under 60 seconds on a warm cache; registry and runner latency can exceed this.
-Every job has a five-minute timeout and superseded runs are cancelled.
-
-
-Local verification after integrating the demo app: Ruff passed (0.028 s), all
-122 tests passed (pytest step 0.900 s), Compose configuration passed, and Docker
-build passed (14.040 s). Image size: 138,979,478 bytes (139.0 MB uncompressed).
-Actual GitHub Actions setup, installation, cache export and push timings require
-a workflow run; the under-60-second target remains unconfirmed.
+Tests are focused on normalisation, midnight/arrival/cancellation, paging, config
+and error mapping, with one small documented fixture. They block network access.
+No browser suite, snapshots, coverage gates, type checker or transport/concurrency
+harness. A single Demo container smoke check is used locally when validating image changes.
+CI retains main's lean Ruff/pytest and Docker Hub publication workflow. Existing broad phase-1 matrices
+and trivial framework/logging tests were removed to follow the current policy.
+Dependencies remain pinned; application and Uvicorn logs are JSON without raw
+paths, query strings, credentials or payloads. ADRs are in docs/adr/.

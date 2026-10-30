@@ -1,0 +1,25 @@
+{
+  "generatedAt": "2026-10-29T18:00:00Z",
+  "locationName": "Surbiton",
+  "crs": "SUR",
+  "filtercrs": "WAT",
+  "areServicesAvailable": true,
+  "nrccMessages": [{"Value": "<p>Demo fixture only</p>"}],
+  "trainServices": [{
+    "serviceID": "sanitised-service",
+    "std": "18:05",
+    "etd": "18:12",
+    "platform": "3",
+    "operator": "Example Rail",
+    "operatorCode": "EX",
+    "isCancelled": false,
+    "length": 8,
+    "delayReason": "Signalling problem",
+    "origin": [{"locationName": "Surbiton", "crs": "SUR"}],
+    "destination": [{"locationName": "London Waterloo", "crs": "WAT"}],
+    "subsequentCallingPoints": [{"callingPoint": [
+      {"locationName": "Clapham Junction", "crs": "CLJ", "st": "18:19", "et": "18:26"},
+      {"locationName": "London Waterloo", "crs": "WAT", "st": "18:29", "et": "18:36"}
+    ]}]
+  }]
+}

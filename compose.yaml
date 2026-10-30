@@ -2,12 +2,19 @@ services:
   rail:
     image: docker.io/${DOCKERHUB_USERNAME:-jonesdavidj}/rail:${RAIL_IMAGE_TAG:-main}
     container_name: ${RAIL_CONTAINER_NAME:-rail}
+    platform: ${RAIL_PLATFORM:-linux/amd64}
     restart: ${RAIL_RESTART_POLICY:-unless-stopped}
     environment:
       RAIL_PROVIDER: ${RAIL_PROVIDER:-demo}
       RAIL_DATA_PATH: ${RAIL_DATA_PATH:-/data}
       TZ: ${TZ:-Europe/London}
+      RAIL_DATA_BASE_URL: ${RAIL_DATA_BASE_URL:-}
+      RAIL_DATA_ALLOWED_HOSTS: ${RAIL_DATA_ALLOWED_HOSTS:-api1.raildata.org.uk}
       RAIL_DATA_API_KEY: ${RAIL_DATA_API_KEY:-}
+      RAIL_DATA_API_KEY_FILE: ${RAIL_DATA_API_KEY_FILE:-}
+      ADMIN_TOKEN: ${ADMIN_TOKEN:-}
+      RAIL_CACHE_TTL: ${RAIL_CACHE_TTL:-30}
+      RAIL_REFRESH_SECONDS: ${RAIL_REFRESH_SECONDS:-30}
     ports:
       - "${RAIL_HOST_PORT:-8097}:8097"
     volumes:

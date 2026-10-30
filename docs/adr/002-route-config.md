@@ -1,6 +1,6 @@
 # ADR 002: Runtime JSON routes and bundled stations
 
-Status: accepted for phase 1.
+Status: accepted for phase 1; runtime write behaviour superseded by ADR 004.
 
 Routes are validated data in /data/routes.json, not Python branches. Built-in
 fallback routes are created only when configuration cannot be loaded. Do not

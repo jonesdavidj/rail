@@ -62,3 +62,7 @@ class BoardPage(NormalisedBoard):
     next_offset: int | None = None
     earlier_offset: int | None = None
     has_next: bool = False
+    stale: bool = False
+    error: str | None = None
+    error_code: str | None = None
+    cache_age_seconds: int = 0
