@@ -3,3 +3,5 @@
 !app/**
 !requirements.txt
 !Dockerfile
+
+work/

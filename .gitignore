@@ -19,3 +19,5 @@ htmlcov/
 data/
 !app/data/
 !app/data/*
+
+work/

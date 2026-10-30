@@ -115,28 +115,67 @@ JSON application logs go to stdout with a timestamp, level, event and safe field
 Raw requests, query strings, authentication headers and payloads are not logged.
 Run Uvicorn with `--no-access-log` as the image does.
 
-## Container and deployment
+## Deploy (demo)
 
-Build locally with `docker build -t rail:local .`. For local Compose verification,
-export the documented variables from `.env.example`, setting `RAIL_IMAGE=rail:local`.
-Production values belong in Portainer stack variables, not a committed `.env`.
+The app serves offline demo departure boards; live rail-data integration is not implemented.
+Use the root `compose.yaml` for Portainer on Docker Standalone. No NAS mount,
+external network, or committed `.env` is needed. The image runs as UID/GID 10001,
+with tzdata installed, on port 8097. Only `/data` (local named volume) and `/tmp`
+(tmpfs) are writable application paths; capabilities are dropped and privilege
+escalation is disabled.
 
-`compose.yaml` publishes host port 8097, uses a local named volume whose name must
-be set to `rail-data`, mounts it at `/data`, runs read-only except for that mount,
-and uses `restart: unless-stopped`, `TZ=Europe/London` and `linux/amd64` via variables.
-A fresh volume inherits `/data` ownership for non-root UID/GID 10001. Restored volumes
-must retain readable config permissions. No NAS, external network or TLS listener.
+First deployment, in order:
 
-Ingress remains Cloudflare Access → Tunnel → shared edge-caddy →
-`minisforum.lan:8097`. The application accepts this Host and uses relative links.
-Do not expose the host port to the public internet. You own the Caddy site block.
+1. Create a Docker Hub repository named `rail` in your account (public for
+   unauthenticated Portainer pulls). Create a Docker Hub access token with write
+   permission for that repository.
+2. In this GitHub repo, Settings → Secrets and variables → Actions, add repository
+   secrets `DOCKERHUB_USERNAME` (your Docker Hub account) and `DOCKERHUB_TOKEN`
+   (the write token). These match `jonesdavidj/power-map`. Enable GitHub Actions.
+3. Push/merge this change to `main`. Wait for CI to pass and publish both
+   `docker.io/<username>/rail:main` and `:sha-<7-character-commit>`.
+4. In Portainer, choose your Docker Standalone environment → Stacks → Add stack.
+   Name it `rail`, choose Repository, enter `https://github.com/jonesdavidj/rail`,
+   reference `refs/heads/main`, and Compose path `compose.yaml`. If the GitHub repo
+   is private, configure repository authentication with read access. If the Docker
+   Hub image is private, first add authenticated Docker Hub registry access in
+   Portainer and select it for this stack.
+5. In stack environment variables, set `DOCKERHUB_USERNAME` to the account from
+   step 1. Leave `RAIL_DATA_API_KEY` empty. All other variables are optional:
 
-Phase 1 CI validates, tests, scans, builds and smoke-tests an empty volume. It does
-not publish to a registry or deploy. Docker Hub publication with moving `main` and
-immutable release tags is deferred; use immutable tags for deliberate Portainer
-releases because Watchtower observes moving tags every five minutes.
+   | Variable | Default |
+   | --- | --- |
+   | `DOCKERHUB_USERNAME` | `jonesdavidj` (override if different) |
+   | `RAIL_IMAGE_TAG` | `main` |
+   | `RAIL_CONTAINER_NAME` | `rail` |
+   | `RAIL_RESTART_POLICY` | `unless-stopped` |
+   | `TZ` | `Europe/London` |
+   | `RAIL_HOST_PORT` | `8097` |
+   | `RAIL_DATA_VOLUME` | `rail-data` |
+   | `RAIL_TMP_SIZE` | `16m` |
+   | `RAIL_READ_ONLY` | `true` |
+   | `RAIL_PROVIDER` | `demo` |
+   | `RAIL_DATA_PATH` | `/data` |
+   | `RAIL_DATA_API_KEY` | empty; no key needed for demo |
 
-Set `RAIL_PROVIDER=demo` (default). Explicit `rail_data` selection returns a clear
-unimplemented error and degraded health; it never silently serves Demo as live.
-RDM authentication, official schema verification, caching and the final UI follow
-in later phases. See [ADRs](docs/adr/001-runtime.md).
+   `.env.example` documents the same variables; do not commit a `.env`.
+   Keep the security defaults. Port 8097 must be available on the Docker host.
+6. Deploy the stack. Docker creates the local `rail-data` volume automatically;
+   a new volume inherits `/data` ownership from the image. Verify container `rail`
+   becomes healthy and `http://<docker-host>:8097/api/health` returns
+   JSON containing `"ok": true`, `"mode": "demo"` and `"demo": true`.
+   Open `http://<docker-host>:8097/` for the demo board. On later updates,
+   pull/redeploy the stack to refresh `main`, or set `RAIL_IMAGE_TAG` to a published
+   `sha-…` tag for an exact version. Do not delete the volume during updates.
+
+CI runs only Ruff and pytest on pull requests (plus checkout/tool setup). Pushes
+to `main` run the same checks, then one cached Docker build/push. The target is
+under 60 seconds on a warm cache; registry and runner latency can exceed this.
+Every job has a five-minute timeout and superseded runs are cancelled.
+
+
+Local verification after integrating the demo app: Ruff passed (0.028 s), all
+122 tests passed (pytest step 0.900 s), Compose configuration passed, and Docker
+build passed (14.040 s). Image size: 138,979,478 bytes (139.0 MB uncompressed).
+Actual GitHub Actions setup, installation, cache export and push timings require
+a workflow run; the under-60-second target remains unconfirmed.
