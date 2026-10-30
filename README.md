@@ -55,6 +55,7 @@ preview labels stale boards visibly. Older boards are not served after an error.
 Only validated boards enter the cache. The cache holds up to 256 completed entries
 and is in memory only. Run one worker. See the [5-million-call budget](docs/api-budget.md).
 
+Missing platforms are shown as `TBC`. Feed field names are read case-insensitively.
 Missing or non-positive carriage counts are omitted; only the feed's `length` is
 used. Stop-specific lengths do not become departure carriage counts. No guessing.
 
@@ -71,8 +72,8 @@ python -m app --check --route back --raw
 Each command makes one live detailed-board request, even when the app otherwise
 runs in Demo. It prints the parsed board and optionally the first raw service;
 nonzero exit means failure. It never prints request headers or the key. Raw output
-is for deliberate local diagnostics, not general logging. The key was unavailable
-during implementation, so live subscription/field population remains untested.
+is for deliberate local diagnostics, not general logging. The user supplied live response captures, now checked through parsing/normalisation;
+this client's live transport and runtime parameter limits have not yet been exercised.
 
 ## Routes are runtime data
 
@@ -193,7 +194,7 @@ python -m pytest
 ```
 
 Tests are focused on normalisation, midnight/arrival/cancellation, paging, config
-and error mapping, with one small documented fixture. They block network access.
+and error mapping, with two complete live fixtures and minimal in-code examples for uncovered branches. They block network access.
 No browser suite, snapshots, coverage gates, type checker or transport/concurrency
 harness. A single Demo container smoke check is used locally when validating image changes.
 CI retains main's lean Ruff/pytest and Docker Hub publication workflow. Existing broad phase-1 matrices
