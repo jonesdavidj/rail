@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en-GB">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rail API preview</title>
+<body>
+<h1>Rail API preview</h1>
+<p id="mode">Loading provider status…</p>
+<label>Route <select id="route"></select></label>
+<button id="earlier">Earlier trains</button>
+<button id="later">Later trains</button>
+<pre id="board" aria-live="polite"></pre>
+<script>
+"use strict";
+const route = document.getElementById("route");
+const output = document.getElementById("board");
+const earlier = document.getElementById("earlier");
+const later = document.getElementById("later");
+let offsets = [0], next = null;
+async function load() {
+  earlier.disabled = later.disabled = true;
+  try {
+    const query = new URLSearchParams({route: route.value, offset: offsets.at(-1)});
+    const response = await fetch("/api/board?" + query);
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.detail || "Could not load board");
+    output.textContent = JSON.stringify(data, null, 2);
+    next = data.next_offset;
+    earlier.disabled = offsets.length === 1 && data.earlier_offset === null;
+    later.disabled = !data.has_next;
+  } catch (error) { output.textContent = String(error); }
+}
+route.onchange = () => { offsets = [0]; load(); };
+earlier.onclick = () => { if (offsets.length > 1) offsets.pop(); else offsets = [-45]; load(); };
+later.onclick = () => { if (next !== null) { offsets.push(next); load(); } };
+async function start() {
+  try {
+    const health = await (await fetch("/api/health")).json();
+    document.getElementById("mode").textContent = health.demo
+      ? "DEMO DATA — these are not real trains." : "Live provider unavailable in phase 1.";
+    const routes = await (await fetch("/api/routes")).json();
+    for (const item of routes) {
+      const option = document.createElement("option");
+      option.value = item.id; option.textContent = item.label; route.append(option);
+    }
+    if (routes.length) await load(); else output.textContent = "No saved routes.";
+  } catch (error) { output.textContent = String(error); }
+}
+start();
+</script>
+</body>
+</html>

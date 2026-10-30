@@ -66,10 +66,12 @@ class RouteConfig(BaseModel):
 
 
 def defaults() -> RouteConfig:
-    return RouteConfig(routes=[
-        Route(id="out", label="Surbiton to London Waterloo", origin="SUR", destination="WAT"),
-        Route(id="back", label="London Waterloo to Surbiton", origin="WAT", destination="SUR"),
-    ])
+    return RouteConfig(
+        routes=[
+            Route(id="out", label="Surbiton to London Waterloo", origin="SUR", destination="WAT"),
+            Route(id="back", label="London Waterloo to Surbiton", origin="WAT", destination="SUR"),
+        ]
+    )
 
 
 class ConfigLoad(BaseModel):

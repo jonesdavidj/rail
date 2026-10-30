@@ -46,7 +46,9 @@ def positive_int(value: object) -> int | None:
     return None
 
 
-def time_state(planned: object, estimate: object, actual: object = None) -> tuple[str | None, TimeState]:
+def time_state(
+    planned: object, estimate: object, actual: object = None
+) -> tuple[str | None, TimeState]:
     if actual_time := clock(actual):
         return actual_time, "actual"
     if expected := clock(estimate):
@@ -85,7 +87,7 @@ def calling_points(raw: Raw, destination: str) -> list[Raw]:
         points = objects(group.get("callingPoint"))
         for index, point in enumerate(points):
             if point.get("crs") == destination:
-                return points[:index + 1]
+                return points[: index + 1]
     return []
 
 
@@ -105,14 +107,17 @@ def normalise_service(raw: Raw, destination: str, now: datetime) -> Service | No
     for point in points:
         scheduled = clock(point.get("st"))
         estimate, point_state = time_state(scheduled, point.get("et"), point.get("at"))
-        stops.append(Stop(
-            name=text(point.get("locationName")) or text(point.get("crs")),
-            crs=text(point.get("crs")), planned=scheduled,
-            expected=estimate if estimate != scheduled else None,
-            state=point_state,
-            cancelled=point.get("isCancelled") is True or point_state == "cancelled",
-            length=positive_int(point.get("length")),
-        ))
+        stops.append(
+            Stop(
+                name=text(point.get("locationName")) or text(point.get("crs")),
+                crs=text(point.get("crs")),
+                planned=scheduled,
+                expected=estimate if estimate != scheduled else None,
+                state=point_state,
+                cancelled=point.get("isCancelled") is True or point_state == "cancelled",
+                length=positive_int(point.get("length")),
+            )
+        )
     partial = not cancelled and (
         raw.get("filterLocationCancelled") is True or bool(stops and stops[-1].cancelled)
     )
@@ -133,25 +138,40 @@ def normalise_service(raw: Raw, destination: str, now: datetime) -> Service | No
     arrival = None
     if stops:
         final = stops[-1]
-        arrival = Arrival(planned=final.planned, expected=final.expected, state=final.state,
-                          cancelled=final.cancelled or cancelled or partial)
+        arrival = Arrival(
+            planned=final.planned,
+            expected=final.expected,
+            state=final.state,
+            cancelled=final.cancelled or cancelled or partial,
+        )
     platform = raw.get("platform")
-    platform_text = text(platform) if isinstance(platform, str) else (
-        str(platform) if type(platform) is int else ""
+    platform_text = (
+        text(platform)
+        if isinstance(platform, str)
+        else (str(platform) if type(platform) is int else "")
     )
     identity = text(raw.get("serviceID"))
     if not identity:
         seed = repr((planned, raw.get("origin"), raw.get("destination"), points))
         identity = "derived-" + hashlib.sha256(seed.encode()).hexdigest()[:20]
     return Service(
-        id=identity, planned=planned, expected=expected if expected != planned else None,
+        id=identity,
+        planned=planned,
+        expected=expected if expected != planned else None,
         in_min=math.floor((departure_datetime(planned, now).timestamp() - now.timestamp()) / 60),
-        status=status, delay_min=delay, platform=platform_text or None,
+        status=status,
+        delay_min=delay,
+        platform=platform_text or None,
         operator=text(raw.get("operatorCode")) or text(raw.get("operator")),
-        operator_name=text(raw.get("operator")), origin=location_name(raw.get("origin")),
-        destination=location_name(raw.get("destination")), length=positive_int(raw.get("length")),
-        reason=reason, arrival=arrival, stops=stops,
-        stop_count=max(len(stops) - 1, 0) if stops else None, service_type=kind,
+        operator_name=text(raw.get("operator")),
+        origin=location_name(raw.get("origin")),
+        destination=location_name(raw.get("destination")),
+        length=positive_int(raw.get("length")),
+        reason=reason,
+        arrival=arrival,
+        stops=stops,
+        stop_count=max(len(stops) - 1, 0) if stops else None,
+        service_type=kind,
     )
 
 
@@ -183,6 +203,9 @@ def normalise_board(raw: object, destination: str, now: datetime) -> NormalisedB
                 generated = parsed
         except ValueError:
             pass
-    return NormalisedBoard(generated_at=generated, services=services,
-                           messages=[message for message in messages if message][:3],
-                           services_available=raw.get("areServicesAvailable") is not False)
+    return NormalisedBoard(
+        generated_at=generated,
+        services=services,
+        messages=[message for message in messages if message][:3],
+        services_available=raw.get("areServicesAvailable") is not False,
+    )
