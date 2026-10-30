@@ -65,7 +65,7 @@ def create_app(
             {"route", "offset", "cursor", "fast"}
             if path == "/api/board"
             else (
-                {"route"}
+                {"route", "n"}
                 if path == "/api/summary"
                 else (
                     {"q"}
@@ -97,6 +97,10 @@ def create_app(
             or (
                 "offset" in request.query_params
                 and re.fullmatch(r"-?[0-9]+", request.query_params["offset"]) is None
+            )
+            or (
+                "n" in request.query_params
+                and re.fullmatch(r"[0-9]+", request.query_params["n"]) is None
             )
         ):
             response = JSONResponse({"detail": "Invalid query parameters"}, status_code=422)
@@ -224,7 +228,7 @@ def create_app(
             logger.warning("invalid_provider_board")
             raise HTTPException(502, "Provider returned an invalid board") from None
 
-    application.include_router(summary_router(store, selected, now))
+    application.include_router(summary_router(store, selected, now, settings.cache_ttl))
 
     @application.get("/", response_class=FileResponse)
     def index() -> FileResponse:
