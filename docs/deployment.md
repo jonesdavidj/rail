@@ -16,3 +16,19 @@ Compose defaults to Demo, including after upgrading this branch. Configure the
 RDM key/Specification URL in Portainer, run the one-request --check CLI, then set
 RAIL_PROVIDER=auto or rail_data to enable live boards. Never put the key in chat or
 Git. See README for complete setup. No production deployment is performed here.
+
+## Operations and releases
+
+See the [runbook](runbook.md) for Portainer deployment/rollback, key rotation,
+feed failures and volume backup. The manual Release workflow promotes an already
+published main SHA image to an immutable `vX.Y.Z` tag and adds the matching Git tag.
+It does not deploy or move the `main` image tag.
+
+## Docker repo README snippet
+
+Suggested additional row for `jonesdavidj/docker`'s existing `Layer | Stacks` table;
+this is documentation to copy there, not a stack owned by that repo:
+
+```markdown
+| App in its own repo | Rail — deployed by Portainer from [jonesdavidj/rail](https://github.com/jonesdavidj/rail), using its `compose.yaml`; image `jonesdavidj/rail`, host port 8097, local volume `rail-data` |
+```
