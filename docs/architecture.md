@@ -1,21 +1,9 @@
 # Architecture
 
-This template targets small self-hosted services:
+See [runtime ADR](adr/001-runtime.md), [route config ADR](adr/002-route-config.md)
+and [normalisation/paging ADR](adr/003-normalisation-and-paging.md).
 
-- FastAPI APIs
-- Node frontends
-- worker/background containers
-- simple compose-only services
-
-## Layout
-
-- `app/`: minimal example service entrypoint.
-- `compose/`: local and Portainer-focused compose files.
-- `scripts/`: CI/local utility scripts for checks, tests, builds.
-- `.github/workflows/ci.yml`: validation, testing, audit, and image build/push flow.
-
-## CI Design
-
-1. Validate: Hadolint, Gitleaks, Compose config, tests, dependency audit.
-2. Build: always builds image.
-3. Push: only on `main` pushes.
+app/main.py is the HTTP boundary; config.py validates runtime routes; providers.py
+produces raw boards; normalise.py maps them to models.py; paging.py builds pages.
+app/static/index.html is a minimal API preview. app/data contains only reference
+station data and its licence, never user configuration. tests/ is entirely offline.

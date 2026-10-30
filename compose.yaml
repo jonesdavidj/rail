@@ -1,0 +1,20 @@
+services:
+  rail:
+    image: ${RAIL_IMAGE}
+    platform: ${RAIL_PLATFORM}
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ}
+      RAIL_DATA_PATH: ${RAIL_DATA_PATH}
+      RAIL_PROVIDER: ${RAIL_PROVIDER}
+    ports:
+      - "${RAIL_HOST_PORT}:8080"
+    volumes:
+      - rail-data:/data
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+
+volumes:
+  rail-data:
+    name: ${RAIL_VOLUME_NAME}

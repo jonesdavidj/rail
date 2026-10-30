@@ -96,3 +96,13 @@ def test_unreadable_and_oversize(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 
     monkeypatch.setattr(Path, "read_bytes", denied)
     assert load_config(tmp_path).warning == "config_unreadable"
+
+
+def test_catalogue_contains_gb_stations() -> None:
+    import re
+
+    from app.config import STATIONS
+
+    assert len(STATIONS) == 2652
+    assert STATIONS["SUR"] == "Surbiton" and STATIONS["WAT"] == "London Waterloo"
+    assert all(re.fullmatch(r"[A-Z]{3}", code) and name for code, name in STATIONS.items())

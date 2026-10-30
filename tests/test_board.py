@@ -125,3 +125,41 @@ def test_malformed_provider(tmp_path: Path) -> None:
 
     with TestClient(create_app(Settings(data_path=tmp_path), BrokenProvider())) as client:
         assert client.get("/api/board?route=out").status_code == 502
+
+
+@pytest.mark.parametrize(
+    "query",
+    ["route=out&offset=1.0", "route=out&offset=+1", "route=out&offset=", "route=out&offset=1e1"],
+)
+def test_integer_offset_syntax(tmp_path: Path, query: str) -> None:
+    with TestClient(create_app(Settings(data_path=tmp_path))) as client:
+        assert client.get("/api/board?" + query).status_code == 422
+
+
+@pytest.mark.parametrize("endpoint", ["/api/health", "/api/routes"])
+def test_no_unexpected_parameters(tmp_path: Path, endpoint: str) -> None:
+    with TestClient(create_app(Settings(data_path=tmp_path))) as client:
+        assert client.get(endpoint + "?unexpected=value").status_code == 422
+
+
+def test_configured_route_is_used(tmp_path: Path, now: datetime) -> None:
+    config = defaults().model_dump()
+    config["routes"] = [
+        {
+            "id": "custom",
+            "label": "Woking to Waterloo",
+            "origin": "WOK",
+            "destination": "WAT",
+            "min_departure_minutes": 15,
+            "page_size": 3,
+        }
+    ]
+    import json
+
+    (tmp_path / "routes.json").write_text(json.dumps(config))
+    with TestClient(create_app(Settings(data_path=tmp_path), now=lambda: now)) as client:
+        board = client.get("/api/board?route=custom").json()
+        assert board["title"] == "Woking to Waterloo"
+        assert len(board["services"]) == 3
+        assert all(row["in_min"] >= 15 for row in board["services"])
+        assert client.get("/api/board?route=out").status_code == 404
