@@ -62,7 +62,7 @@ def create_app(
         started = time.monotonic()
         path = request.url.path
         allowed = (
-            {"route", "offset", "cursor"}
+            {"route", "offset", "cursor", "fast"}
             if path == "/api/board"
             else (
                 {"route"}
@@ -182,6 +182,7 @@ def create_app(
         route: Annotated[RouteID, Query()],
         offset: Annotated[int, Query(ge=MIN_OFFSET, le=MAX_OFFSET)] = 0,
         cursor: Annotated[str | None, Query(min_length=1, max_length=4096)] = None,
+        fast: Annotated[str, Query(pattern=r"^[01]$")] = "0",
     ) -> BoardPage | JSONResponse:
         config = next((r for r in store.snapshot().config.routes if r.id == route), None)
         if config is None:
@@ -202,6 +203,7 @@ def create_app(
                 selected,
                 moment,
                 boundary,
+                fast == "1",
             )
             return page.model_copy(
                 update={

@@ -46,6 +46,9 @@ class Service(BaseModel):
     service_type: Literal["train", "bus"] = "train"
     future_delay: bool = False
     future_cancellation: bool = False
+    is_fast: bool = False
+    journey_minutes: int | None = None
+    is_quickest: bool = False
 
 
 class NormalisedBoard(BaseModel):
@@ -69,3 +72,6 @@ class BoardPage(NormalisedBoard):
     error: str | None = None
     error_code: str | None = None
     cache_age_seconds: int = 0
+    fast_only: bool = False
+    fast_count: int = 0
+    total_count: int = 0
