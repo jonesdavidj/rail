@@ -14,6 +14,8 @@ const london = (date, seconds = false) => new Intl.DateTimeFormat("en-GB", {
 const memory = {
   get() { try { return localStorage.getItem("rail.lastRoute"); } catch { return null; } },
   set(id) { try { localStorage.setItem("rail.lastRoute", id); } catch { /* Private storage can be unavailable. */ } },
+  fast(id) { try { return localStorage.getItem("rail.fast." + id) === "1"; } catch { return false; } },
+  setFast(id, enabled) { try { localStorage.setItem("rail.fast." + id, enabled ? "1" : "0"); } catch { /* Device storage is optional. */ } },
 };
 let routes = [], current = null, refreshMs = 30000, refreshTimer, editing = null;
 let globalWarning = "", bootSequence = 0, tokenRequired = false, nextDomId = 0;
@@ -23,7 +25,7 @@ const station = {from: null, to: null};
 const searches = {};
 const stateFor = (id) => {
   if (!boards.has(id)) boards.set(id, {
-    stack: [{offset: 0}], data: null, open: new Set(), domIds: new Map(), loading: false,
+    stack: [{offset: 0}], fast: memory.fast(id), data: null, open: new Set(), domIds: new Map(), loading: false,
     error: null, sequence: 0, controller: null, received: 0, noticesOpen: false,
   });
   return boards.get(id);
@@ -121,6 +123,7 @@ async function loadBoard(id, announce = false) {
     const position = state.stack.at(-1);
     const query = new URLSearchParams({route: id, offset: position.offset});
     if (position.cursor) query.set("cursor", position.cursor);
+    if (state.fast) query.set("fast", "1");
     const data = await api("/api/board?" + query, {signal: controller.signal});
     if (sequence !== state.sequence) return;
     state.data = data;
@@ -172,6 +175,7 @@ function serviceRow(service, state, justOpened) {
   if (!state.domIds.has(service.id)) state.domIds.set(service.id, "service-" + ++nextDomId);
   const id = state.domIds.get(service.id);
   const item = node("li", "service"); item.dataset.status = service.status;
+  item.classList.toggle("fast", service.is_fast);
   const toggle = node("button", "service-toggle");
   toggle.type = "button"; toggle.id = id;
   const open = state.open.has(service.id);
@@ -189,11 +193,23 @@ function serviceRow(service, state, justOpened) {
   if (service.service_type === "bus") meta.push("Replacement bus");
   if (service.operator_name || service.operator) meta.push(service.operator_name || service.operator);
   if (service.length > 0) meta.push(`${service.length} cars`);
-  if (service.stop_count != null) meta.push(service.stop_count === 0 ? "Non-stop" : `${service.stop_count} ${service.stop_count === 1 ? "stop" : "stops"}`);
+  const stopsText = service.stop_count == null ? "" : (service.stop_count === 0 ? "Non-stop" : `${service.stop_count} ${service.stop_count === 1 ? "stop" : "stops"}`);
+  const metadata = node("span", "service-meta", meta.join(" · "));
+  if (stopsText) {
+    if (meta.length) metadata.append(document.createTextNode(" · "));
+    const stopSummary = node("span", "stop-summary");
+    if (service.is_fast) stopSummary.append(node("span", "fast-pill", "Fast"), document.createTextNode(", "));
+    stopSummary.append(document.createTextNode(stopsText)); metadata.append(stopSummary);
+  }
+  if (service.journey_minutes != null) {
+    if (metadata.childNodes.length) metadata.append(document.createTextNode(" · "));
+    metadata.append(node("span", "journey-time", `${service.journey_minutes} min`));
+  }
+  if (service.is_quickest) metadata.append(document.createTextNode(" · "), node("span", "quickest", "Quickest"));
   const status = node("span", "service-status");
   status.append(node("span", "status", statusText(service)), node("span", "disclosure", open ? "Hide stops −" : "Show stops +"));
   toggle.append(dep, destination, node("span", "platform", service.platform || "TBC"), arrival,
-    node("span", "service-meta", meta.join(" · ")), status);
+    metadata, status);
   toggle.setAttribute("aria-label", [
     `Planned departure ${service.planned}`,
     service.expected && service.status !== "cancelled" ? `expected departure ${service.expected}` : "",
@@ -201,7 +217,9 @@ function serviceRow(service, state, justOpened) {
     service.platform && service.platform !== "TBC" ? `platform ${service.platform}` : "platform to be confirmed",
     `planned arrival ${service.arrival?.planned || "unavailable"}`,
     service.arrival?.expected && !service.arrival.cancelled ? `expected arrival ${service.arrival.expected}` : "",
-    statusText(service), ...meta, open ? "Hide stops" : "Show stops",
+    statusText(service), ...meta, service.is_fast ? "Fast" : "", stopsText,
+    service.journey_minutes != null ? `${service.journey_minutes} minute journey` : "",
+    service.is_quickest ? "Quickest" : "", open ? "Hide stops" : "Show stops",
   ].filter(Boolean).join(". "));
   const descriptions = [];
   item.append(toggle);
@@ -244,6 +262,10 @@ function renderBoard(justOpened = null) {
   $("board-state").hidden = true;
   $("mode").hidden = !data?.demo;
   $("departures").setAttribute("aria-busy", String(Boolean(state?.loading)));
+  $("filter-all").disabled = $("filter-fast").disabled = !route;
+  $("filter-all").setAttribute("aria-pressed", String(!state?.fast));
+  $("filter-fast").setAttribute("aria-pressed", String(Boolean(state?.fast)));
+  $("filter-fast").textContent = data ? `Fast only (${data.fast_count} of ${data.total_count})` : "Fast only";
   const error = globalWarning || state?.error || (data?.stale ? data.error || "Live updates are unavailable." : "");
   const alert = $("board-error"); alert.replaceChildren(); alert.hidden = !error || (!data && route && !globalWarning);
   if (error) {
@@ -258,8 +280,9 @@ function renderBoard(justOpened = null) {
   else if (!data) showState("Departures couldn't be loaded", state.error || "Try again, check your connection or reload the page to renew your access session.", [["Try again", () => loadBoard(current, true)], ["Reload page", () => location.reload()]]);
   else if (!data.services.length) {
     const walking = route.min_departure_minutes;
-    showState(data.services_available === false ? "Departure information is unavailable" : "No direct trains in this window",
-      walking > 0 && state.stack.length === 1 && state.stack.at(-1).offset >= 0
+    showState(data.services_available === false ? "Departure information is unavailable" : state.fast ? "No fast trains in this window. Try Later trains." : "No direct trains in this window",
+      state.fast ? "Try Later trains, or choose All trains to see every service."
+      : walking > 0 && state.stack.length === 1 && state.stack.at(-1).offset >= 0
         ? `Your ${walking}-minute walking allowance may hide earlier trains. Reduce it in settings or try again later.`
         : "Try the next departures, check your selected stations in settings, or try again shortly.",
       [[state.stack.at(-1).offset !== 0 || state.stack.length > 1 ? "Back to next departures" : "Try again", () => { state.stack = [{offset: 0}]; state.data = null; loadBoard(current, true); }], ["Route settings", openSettings]]);
@@ -293,6 +316,14 @@ $("notices").addEventListener("toggle", () => { if (current) stateFor(current).n
 $("earlier").onclick = () => page("earlier");
 $("later").onclick = () => page("later");
 $("return-now").onclick = () => page("now");
+function setFast(enabled) {
+  if (!current) return;
+  const state = stateFor(current); state.fast = enabled;
+  memory.setFast(current, enabled); state.stack = [{offset: 0}]; state.data = null; state.error = null;
+  loadBoard(current, true);
+}
+$("filter-all").onclick = () => setFast(false);
+$("filter-fast").onclick = () => setFast(true);
 
 function message(text, success = false) {
   const target = $("settings-message"); target.textContent = text;
@@ -301,6 +332,7 @@ function message(text, success = false) {
 }
 function resetForm() {
   $("route-form").reset(); editing = null; station.from = station.to = null;
+  $("fast-destination").textContent = "the destination";
   $("form-heading").textContent = "Add a journey"; $("save-route").textContent = "Add journey";
   $("cancel-edit").hidden = true; $("return-option").hidden = false;
   for (const name of ["from", "to"]) {
@@ -407,6 +439,7 @@ async function editRoute(route) {
   $("form-heading").textContent = "Edit journey"; $("save-route").textContent = "Save changes";
   $("cancel-edit").hidden = false; $("return-option").hidden = true;
   $("label").value = route.label; $("walking").value = route.min_departure_minutes;
+  $("fast-max").value = route.fast_max_stops;
   for (const [name, crs] of [["from", route.origin], ["to", route.destination]]) {
     if (editing !== route.id || !$("settings").open) return;
     station[name] = {crs, name: crs}; $(name).value = crs; $(name + "-hint").textContent = "Selected: " + crs;
@@ -425,6 +458,7 @@ function stationSearch(name) {
   const close = () => { clearTimeout(timer); controller?.abort(); sequence++; items = []; results.hidden = true; input.setAttribute("aria-expanded", "false"); input.removeAttribute("aria-activedescendant"); active = -1; };
   const select = (item) => {
     station[name] = item; input.value = `${item.name} (${item.crs})`;
+    if (name === "to") $("fast-destination").textContent = item.name;
     hint.textContent = `Selected: ${item.crs}`; input.removeAttribute("aria-invalid"); close();
   };
   const highlight = () => {
@@ -434,6 +468,7 @@ function stationSearch(name) {
   };
   input.addEventListener("input", () => {
     close(); station[name] = null; hint.textContent = "Search and select a station.";
+    if (name === "to") $("fast-destination").textContent = "the destination";
     const query = input.value.trim();
     if (!query) return;
     const own = sequence;
@@ -483,12 +518,14 @@ $("route-form").onsubmit = async (event) => {
   if (station.from.crs === station.to.crs) { message("Choose two different stations for your journey."); $("to").focus(); return; }
   const walking = $("walking").value === "" ? 0 : Number($("walking").value);
   if (!Number.isInteger(walking) || walking < 0 || walking > 120) { message("Walking time must be a whole number from 0 to 120 minutes."); $("walking").focus(); return; }
+  const fastMax = Number($("fast-max").value);
+  if ($("fast-max").value === "" || !Number.isInteger(fastMax) || fastMax < 0 || fastMax > 5) { message("Fast stops must be a whole number from 0 to 5."); $("fast-max").focus(); return; }
   const button = $("save-route"); button.disabled = true;
   const original = routes.find((route) => route.id === editing);
   const id = editing || "route-" + (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36));
   const route = {id, label: $("label").value.trim() || `${station.from.name} to ${station.to.name}`.slice(0, 100),
     origin: station.from.crs, destination: station.to.crs, min_departure_minutes: walking,
-    page_size: original?.page_size || 7, add_return_journey: !editing && $("add-return").checked};
+    page_size: original?.page_size || 7, fast_max_stops: fastMax, add_return_journey: !editing && $("add-return").checked};
   const saved = await write("/api/routes", editing ? "PUT" : "POST", route);
   button.disabled = false;
   if (saved) { applyRoutes(saved, id); resetForm(); renderSavedRoutes(); message("Journey saved. Close settings to see its departures.", true); }
