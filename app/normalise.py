@@ -171,7 +171,13 @@ def normalise_service(raw: Raw, destination: str, now: datetime) -> Service | No
         id=identity,
         planned=planned,
         expected=expected if expected != planned else None,
-        in_min=math.floor((departure_datetime(planned, now).timestamp() - now.timestamp()) / 60),
+        in_min=math.floor(
+            (
+                departure_datetime(planned, now).timestamp()
+                - now.replace(second=0, microsecond=0).timestamp()
+            )
+            / 60
+        ),
         status=status,
         delay_min=delay,
         platform=platform_text or "TBC",
