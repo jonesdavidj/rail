@@ -157,12 +157,31 @@ contain a token or a route editor; use authenticated API calls for now.
 volume at /data, restart unless-stopped, TZ=Europe/London and linux/amd64. No NAS,
 edge-network attachment or TLS listener. Ingress stays Access → Tunnel → shared
 Caddy → minisforum.lan:8097. Keep that host port off the public internet.
-The image runs read-only except /data as UID/GID 10001. A fresh volume inherits
+The image listens on container port 8097, runs as UID/GID 10001, and is read-only
+except /data and the /tmp tmpfs. A fresh volume inherits
 its ownership. Back up only routes.json; keep restored files readable by that UID.
 
-CI builds/checks but never publishes or deploys in this phase. Later releases must
-use Docker Hub `main` plus immutable tags; deploy immutable tags deliberately via
-Portainer because Watchtower observes moving tags every five minutes.
+CI retains the merged deployment workflow: Ruff and pytest on pull requests;
+validated pushes to main build and publish Docker Hub tags `main` and
+`sha-<7-character-commit>`. Superseded runs are cancelled and jobs have a five-minute
+timeout. No Portainer webhook or automatic stack action is added. Watchtower may
+update containers tracking `main`; use an immutable SHA tag for deliberate releases.
+
+First deployment:
+
+1. Create the `rail` Docker Hub repository and configure GitHub Actions secrets
+   DOCKERHUB_USERNAME and DOCKERHUB_TOKEN with publishing permission.
+2. After merging, wait for the main workflow to publish the image.
+3. In Portainer, create a Repository stack from `jonesdavidj/rail`, branch `main`,
+   Compose path `compose.yaml`. Configure read access if the GitHub repo or image
+   is private.
+4. Set DOCKERHUB_USERNAME and RAIL_IMAGE_TAG in stack variables; `.env.example`
+   documents all names/defaults. Use the published SHA tag for a deliberate release.
+   The stack defaults to Demo; no Rail Data key is needed to start.
+5. Deploy and verify `/api/health` on host port 8097. Preserve `rail-data` on updates.
+6. For live validation, set the key and Specification base URL as Portainer variables,
+   run `python -m app --check --raw` in the container, and then select
+   RAIL_PROVIDER=auto or rail_data when ready. Do not commit or send the key in chat.
 
 ## Checks and testing policy
 
@@ -176,7 +195,8 @@ python -m pytest
 Tests are focused on normalisation, midnight/arrival/cancellation, paging, config
 and error mapping, with one small documented fixture. They block network access.
 No browser suite, snapshots, coverage gates, type checker or transport/concurrency
-harness. CI retains one Demo container smoke test. Existing broad phase-1 matrices
+harness. A single Demo container smoke check is used locally when validating image changes.
+CI retains main's lean Ruff/pytest and Docker Hub publication workflow. Existing broad phase-1 matrices
 and trivial framework/logging tests were removed to follow the current policy.
 Dependencies remain pinned; application and Uvicorn logs are JSON without raw
 paths, query strings, credentials or payloads. ADRs are in docs/adr/.

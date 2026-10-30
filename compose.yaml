@@ -1,27 +1,33 @@
 services:
   rail:
-    image: ${RAIL_IMAGE}
-    platform: ${RAIL_PLATFORM}
-    restart: unless-stopped
+    image: docker.io/${DOCKERHUB_USERNAME:-jonesdavidj}/rail:${RAIL_IMAGE_TAG:-main}
+    container_name: ${RAIL_CONTAINER_NAME:-rail}
+    platform: ${RAIL_PLATFORM:-linux/amd64}
+    restart: ${RAIL_RESTART_POLICY:-unless-stopped}
     environment:
-      TZ: ${TZ}
-      RAIL_DATA_PATH: ${RAIL_DATA_PATH}
-      RAIL_PROVIDER: ${RAIL_PROVIDER}
-      RAIL_DATA_BASE_URL: ${RAIL_DATA_BASE_URL}
-      RAIL_DATA_ALLOWED_HOSTS: ${RAIL_DATA_ALLOWED_HOSTS}
-      RAIL_DATA_API_KEY: ${RAIL_DATA_API_KEY}
-      RAIL_DATA_API_KEY_FILE: ${RAIL_DATA_API_KEY_FILE}
-      ADMIN_TOKEN: ${ADMIN_TOKEN}
-      RAIL_CACHE_TTL: ${RAIL_CACHE_TTL}
-      RAIL_REFRESH_SECONDS: ${RAIL_REFRESH_SECONDS}
+      RAIL_PROVIDER: ${RAIL_PROVIDER:-demo}
+      RAIL_DATA_PATH: ${RAIL_DATA_PATH:-/data}
+      TZ: ${TZ:-Europe/London}
+      RAIL_DATA_BASE_URL: ${RAIL_DATA_BASE_URL:-}
+      RAIL_DATA_ALLOWED_HOSTS: ${RAIL_DATA_ALLOWED_HOSTS:-api1.raildata.org.uk}
+      RAIL_DATA_API_KEY: ${RAIL_DATA_API_KEY:-}
+      RAIL_DATA_API_KEY_FILE: ${RAIL_DATA_API_KEY_FILE:-}
+      ADMIN_TOKEN: ${ADMIN_TOKEN:-}
+      RAIL_CACHE_TTL: ${RAIL_CACHE_TTL:-30}
+      RAIL_REFRESH_SECONDS: ${RAIL_REFRESH_SECONDS:-30}
     ports:
-      - "${RAIL_HOST_PORT}:8080"
+      - "${RAIL_HOST_PORT:-8097}:8097"
     volumes:
       - rail-data:/data
-    read_only: true
-    cap_drop: [ALL]
-    security_opt: ["no-new-privileges:true"]
+    read_only: ${RAIL_READ_ONLY:-true}
+    tmpfs:
+      - /tmp:size=${RAIL_TMP_SIZE:-16m},mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
 
 volumes:
   rail-data:
-    name: ${RAIL_VOLUME_NAME}
+    name: ${RAIL_DATA_VOLUME:-rail-data}
+    driver: local
