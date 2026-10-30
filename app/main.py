@@ -16,6 +16,7 @@ from starlette.middleware.base import RequestResponseEndpoint
 from starlette.responses import Response
 
 from app.config import Route, RouteID, RouteOrder, RouteWrite, Settings
+from app.integrations.home_assistant import summary_router
 from app.logging import configure_logging
 from app.models import BoardPage
 from app.normalise import LONDON, normalise_board
@@ -64,9 +65,13 @@ def create_app(
             {"route", "offset", "cursor"}
             if path == "/api/board"
             else (
-                {"q"}
-                if path == "/api/stations"
-                else ({"id"} if path == "/api/routes" and request.method == "DELETE" else set())
+                {"route"}
+                if path == "/api/summary"
+                else (
+                    {"q"}
+                    if path == "/api/stations"
+                    else ({"id"} if path == "/api/routes" and request.method == "DELETE" else set())
+                )
             )
         )
         write = path in ("/api/routes", "/api/routes/order") and request.method in (
@@ -216,6 +221,8 @@ def create_app(
         except ValueError:
             logger.warning("invalid_provider_board")
             raise HTTPException(502, "Provider returned an invalid board") from None
+
+    application.include_router(summary_router(store, selected, now))
 
     @application.get("/", response_class=FileResponse)
     def index() -> FileResponse:
