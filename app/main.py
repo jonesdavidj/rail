@@ -10,11 +10,12 @@ from typing import Annotated
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import ValidationError
 from starlette.middleware.base import RequestResponseEndpoint
 from starlette.responses import Response
 
-from app.config import Route, RouteID, RouteWrite, Settings
+from app.config import Route, RouteID, RouteOrder, RouteWrite, Settings
 from app.logging import configure_logging
 from app.models import BoardPage
 from app.normalise import LONDON, normalise_board
@@ -68,7 +69,11 @@ def create_app(
                 else ({"id"} if path == "/api/routes" and request.method == "DELETE" else set())
             )
         )
-        write = path == "/api/routes" and request.method in ("POST", "PUT", "DELETE")
+        write = path in ("/api/routes", "/api/routes/order") and request.method in (
+            "POST",
+            "PUT",
+            "DELETE",
+        )
         expected = settings.admin_token.get_secret_value()
         supplied = request.headers.get("Authorization", "")
         if (
@@ -114,6 +119,7 @@ def create_app(
             "mode": selected.mode,
             "demo": selected.mode == "demo",
             "provider_ready": selected.ready,
+            "write_token_required": bool(settings.admin_token.get_secret_value()),
             "config_source": loaded.source,
             "config_warning": loaded.warning,
             "refresh_seconds": settings.refresh_seconds,
@@ -152,6 +158,15 @@ def create_app(
     @application.delete("/api/routes", response_model=list[Route])
     def delete_route(id: Annotated[RouteID, Query()]) -> list[Route]:
         return change_route(id, "delete")
+
+    @application.put("/api/routes/order", response_model=list[Route])
+    def reorder_routes(order: RouteOrder) -> list[Route]:
+        try:
+            return store.reorder(order.ids)
+        except RouteConflict as error:
+            raise HTTPException(409, str(error)) from None
+        except OSError:
+            raise HTTPException(503, "Could not save route order; please try again") from None
 
     @application.get("/api/stations")
     def stations(q: Annotated[str, Query(min_length=1, max_length=100)]) -> list[dict[str, str]]:
@@ -193,6 +208,17 @@ def create_app(
     @application.get("/", response_class=FileResponse)
     def index() -> FileResponse:
         return FileResponse(Path(__file__).parent / "static" / "index.html")
+
+    @application.get("/manifest.webmanifest", include_in_schema=False)
+    def manifest() -> FileResponse:
+        return FileResponse(
+            Path(__file__).parent / "static" / "manifest.webmanifest",
+            media_type="application/manifest+json",
+        )
+
+    application.mount(
+        "/static", StaticFiles(directory=Path(__file__).parent / "static"), name="static"
+    )
 
     return application
 

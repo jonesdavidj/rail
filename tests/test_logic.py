@@ -121,3 +121,13 @@ def test_route_return_journey_persists_as_one_document(tmp_path: Path) -> None:
     assert (reverse.origin, reverse.destination) == ("SUR", "WOK")
     store.write("new-return", "delete")
     assert len(load_config(tmp_path).config.routes) == 3
+
+
+def test_route_order_rejects_changed_membership(tmp_path: Path) -> None:
+    from app.routes import RouteConflict
+
+    store = RouteStore(tmp_path)
+    store.reorder(["back", "out"])
+    with pytest.raises(RouteConflict):
+        store.reorder(["back", "back"])
+    assert [route.id for route in load_config(tmp_path).config.routes] == ["back", "out"]
