@@ -5,7 +5,7 @@ import json
 from datetime import datetime
 
 from app.config import Settings, load_config
-from app.normalise import LONDON, normalise_board, objects
+from app.normalise import LONDON, field, normalise_board, objects
 from app.rail_data import ProviderError, RailDataProvider
 
 
@@ -30,8 +30,8 @@ def main() -> int:
         return 1
     print(f"LIVE: {route.origin} to {route.destination}")
     if args.raw:
-        services = objects(result.raw.get("trainServices")) or objects(
-            result.raw.get("busServices")
+        services = objects(field(result.raw, "trainServices")) or objects(
+            field(result.raw, "busServices")
         )
         print("First raw service:")
         print(json.dumps(services[0] if services else None, indent=2, ensure_ascii=False))

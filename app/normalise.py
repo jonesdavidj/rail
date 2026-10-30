@@ -1,7 +1,7 @@
 """Defensive adapter for the public Darwin JSON shape inspected in ldbws.json.
 
 No network I/O. Unknown values remain unknown; malformed services are skipped.
-Current RDM runtime limits and populated fields still need a key-assisted live check.
+Verified feed facts in AGENTS.md take precedence over schema guesses.
 """
 
 import hashlib
@@ -16,6 +16,16 @@ from app.models import Arrival, NormalisedBoard, Service, Status, Stop, TimeStat
 
 LONDON = ZoneInfo("Europe/London")
 Raw = dict[str, Any]
+
+
+def field(raw: Raw, name: str, default: object = None) -> object:
+    """Darwin field casing varies at every level; preserve original raw responses."""
+    if name in raw:
+        return raw[name]
+    for key, value in raw.items():
+        if key.casefold() == name.casefold():
+            return value
+    return default
 
 
 def objects(value: object) -> list[Raw]:
@@ -79,47 +89,50 @@ def departure_datetime(value: str, reference: datetime) -> datetime:
 
 
 def calling_points(raw: Raw, destination: str) -> list[Raw]:
-    for group in objects(raw.get("subsequentCallingPoints")):
-        if group.get("serviceChangeRequired") is True or group.get("assocIsCancelled") is True:
+    for group in objects(field(raw, "subsequentCallingPoints")):
+        if (
+            field(group, "serviceChangeRequired") is True
+            or field(group, "assocIsCancelled") is True
+        ):
             continue
-        if group.get("serviceType") not in (None, "train", "bus"):
+        if field(group, "serviceType") not in (None, "train", "bus"):
             continue
-        points = objects(group.get("callingPoint"))
+        points = objects(field(group, "callingPoint"))
         for index, point in enumerate(points):
-            if point.get("crs") == destination:
+            if field(point, "crs") == destination:
                 return points[: index + 1]
     return []
 
 
 def location_name(value: object) -> str:
-    return ", ".join(filter(None, (text(item.get("locationName")) for item in objects(value))))
+    return ", ".join(filter(None, (text(field(item, "locationName")) for item in objects(value))))
 
 
 def normalise_service(raw: Raw, destination: str, now: datetime) -> Service | None:
-    planned = clock(raw.get("std"))
-    kind = raw.get("serviceType", "train")
+    planned = clock(field(raw, "std"))
+    kind = field(raw, "serviceType", "train")
     if planned is None or kind not in ("train", "bus"):
         return None
-    expected, state = time_state(planned, raw.get("etd"))
-    cancelled = raw.get("isCancelled") is True or state == "cancelled"
+    expected, state = time_state(planned, field(raw, "etd"))
+    cancelled = field(raw, "isCancelled") is True or state == "cancelled"
     points = calling_points(raw, destination)
     stops: list[Stop] = []
     for point in points:
-        scheduled = clock(point.get("st"))
-        estimate, point_state = time_state(scheduled, point.get("et"), point.get("at"))
+        scheduled = clock(field(point, "st"))
+        estimate, point_state = time_state(scheduled, field(point, "et"), field(point, "at"))
         stops.append(
             Stop(
-                name=text(point.get("locationName")) or text(point.get("crs")),
-                crs=text(point.get("crs")),
+                name=text(field(point, "locationName")) or text(field(point, "crs")),
+                crs=text(field(point, "crs")),
                 planned=scheduled,
                 expected=estimate if estimate != scheduled else None,
                 state=point_state,
-                cancelled=point.get("isCancelled") is True or point_state == "cancelled",
-                length=positive_int(point.get("length")),
+                cancelled=field(point, "isCancelled") is True or point_state == "cancelled",
+                length=positive_int(field(point, "length")),
             )
         )
     partial = not cancelled and (
-        raw.get("filterLocationCancelled") is True or bool(stops and stops[-1].cancelled)
+        field(raw, "filterLocationCancelled") is True or bool(stops and stops[-1].cancelled)
     )
     delay = minutes_between(planned, expected) if expected else None
     status: Status = "unknown"
@@ -127,14 +140,14 @@ def normalise_service(raw: Raw, destination: str, now: datetime) -> Service | No
         status = "cancelled"
     elif partial:
         status = "part_cancelled"
-    elif text(raw.get("etd")).lower() == "delayed":
+    elif text(field(raw, "etd")).lower() == "delayed":
         status = "delayed"
     elif state != "unknown":
         status = "late" if delay is not None and delay > 0 else "on_time"
-    reason = text(raw.get("cancelReason")) if cancelled or partial else ""
+    reason = text(field(raw, "cancelReason")) if cancelled or partial else ""
     if not reason and partial and points:
-        reason = text(points[-1].get("cancelReason"))
-    reason = reason or text(raw.get("delayReason"))
+        reason = text(field(points[-1], "cancelReason"))
+    reason = reason or text(field(raw, "delayReason"))
     arrival = None
     if stops:
         final = stops[-1]
@@ -144,15 +157,15 @@ def normalise_service(raw: Raw, destination: str, now: datetime) -> Service | No
             state=final.state,
             cancelled=final.cancelled or cancelled or partial,
         )
-    platform = raw.get("platform")
+    platform = field(raw, "platform")
     platform_text = (
         text(platform)
         if isinstance(platform, str)
         else (str(platform) if type(platform) is int else "")
     )
-    identity = text(raw.get("serviceID"))
+    identity = text(field(raw, "serviceID"))
     if not identity:
-        seed = repr((planned, raw.get("origin"), raw.get("destination"), points))
+        seed = repr((planned, field(raw, "origin"), field(raw, "destination"), points))
         identity = "derived-" + hashlib.sha256(seed.encode()).hexdigest()[:20]
     return Service(
         id=identity,
@@ -161,12 +174,12 @@ def normalise_service(raw: Raw, destination: str, now: datetime) -> Service | No
         in_min=math.floor((departure_datetime(planned, now).timestamp() - now.timestamp()) / 60),
         status=status,
         delay_min=delay,
-        platform=platform_text or None,
-        operator=text(raw.get("operatorCode")) or text(raw.get("operator")),
-        operator_name=text(raw.get("operator")),
-        origin=location_name(raw.get("origin")),
-        destination=location_name(raw.get("destination")),
-        length=positive_int(raw.get("length")),
+        platform=platform_text or "TBC",
+        operator=text(field(raw, "operatorCode")) or text(field(raw, "operator")),
+        operator_name=text(field(raw, "operator")),
+        origin=location_name(field(raw, "origin")),
+        destination=location_name(field(raw, "destination")),
+        length=positive_int(field(raw, "length")),
         reason=reason,
         arrival=arrival,
         stops=stops,
@@ -180,11 +193,11 @@ def normalise_board(raw: object, destination: str, now: datetime) -> NormalisedB
         raise ValueError("now must be timezone-aware")
     if not isinstance(raw, dict):
         raise ValueError("board must be an object")
-    if any(raw.get(key) for key in ("error", "errors", "fault")):
+    if any(field(raw, key) for key in ("error", "errors", "fault")):
         raise ValueError("upstream returned an error")
     services: list[Service] = []
     for collection in ("trainServices", "busServices"):
-        entries = raw.get(collection)
+        entries = field(raw, collection)
         if entries is not None and not isinstance(entries, list):
             raise ValueError("service collection must be a list")
         for item in objects(entries):
@@ -194,11 +207,12 @@ def normalise_board(raw: object, destination: str, now: datetime) -> NormalisedB
             if service := normalise_service(candidate, destination, now):
                 services.append(service)
     services.sort(key=lambda service: (service.in_min, service.id))
-    messages = [text(message.get("Value")) for message in objects(raw.get("nrccMessages"))]
+    messages = [text(field(message, "Value")) for message in objects(field(raw, "nrccMessages"))]
     generated = now
-    if isinstance(raw.get("generatedAt"), str):
+    stamp = field(raw, "generatedAt")
+    if isinstance(stamp, str):
         try:
-            parsed = datetime.fromisoformat(raw["generatedAt"].replace("Z", "+00:00"))
+            parsed = datetime.fromisoformat(stamp.replace("Z", "+00:00"))
             if parsed.tzinfo is not None and parsed.utcoffset() is not None:
                 generated = parsed
         except ValueError:
@@ -207,5 +221,5 @@ def normalise_board(raw: object, destination: str, now: datetime) -> NormalisedB
         generated_at=generated,
         services=services,
         messages=[message for message in messages if message][:3],
-        services_available=raw.get("areServicesAvailable") is not False,
+        services_available=field(raw, "areServicesAvailable") is not False,
     )

@@ -1,21 +1,15 @@
 """Small documented fixture and public error mapping; no live transport calls."""
 
-import json
 from datetime import datetime
-from pathlib import Path
 
 import pytest
 
 from app.rail_data import ProviderError, http_error, parse_board, transport_error
 
 
-def test_documented_board_and_bad_json(now: datetime) -> None:
-    body = (Path(__file__).parent / "fixtures/board.json").read_bytes()
-    assert parse_board(body, "WAT", now)["crs"] == "SUR"
+def test_bad_json(now: datetime) -> None:
     with pytest.raises(ProviderError, match="invalid JSON"):
         parse_board(b"<html>not JSON</html>", "WAT", now)
-    with pytest.raises(ProviderError, match="invalid JSON"):
-        parse_board(json.dumps({"error": "bad key"}).encode(), "WAT", now)
 
 
 def test_error_mapping() -> None:

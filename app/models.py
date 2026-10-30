@@ -33,7 +33,7 @@ class Service(BaseModel):
     in_min: int
     status: Status
     delay_min: int | None = None
-    platform: str | None = None
+    platform: str = "TBC"
     operator: str = ""
     operator_name: str = ""
     origin: str = ""
