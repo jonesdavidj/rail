@@ -1,9 +1,13 @@
 # Architecture
 
-See [runtime ADR](adr/001-runtime.md), [route config ADR](adr/002-route-config.md)
-and [normalisation/paging ADR](adr/003-normalisation-and-paging.md).
+[Runtime](adr/001-runtime.md), [route config](adr/002-route-config.md),
+[normalisation/paging](adr/003-normalisation-and-paging.md) and
+[live provider/atomic route writes](adr/004-live-provider-and-route-writes.md).
+Later ADRs supersede phase-1 stubs/read-only limits.
 
-app/main.py is the HTTP boundary; config.py validates runtime routes; providers.py
-produces raw boards; normalise.py maps them to models.py; paging.py builds pages.
-app/static/index.html is a minimal API preview. app/data contains only reference
-station data and its licence, never user configuration. tests/ is entirely offline.
+main.py is the HTTP boundary; config.py validates models/settings; routes.py owns
+atomic JSON persistence; providers.py supplies Demo; rail_data.py implements the
+RDM client, shared TTL cache and coalescing. normalise.py maps raw data into
+models.py; paging.py builds pages; stations.py searches the bundled catalogue.
+__main__.py performs deliberate one-request live diagnostics. The minimal static
+preview is not a final UI. Runtime config and credentials are never image assets.
