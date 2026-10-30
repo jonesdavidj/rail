@@ -12,6 +12,11 @@ models.py; paging.py builds pages; stations.py searches the bundled catalogue.
 __main__.py performs deliberate one-request live diagnostics. The static board and settings sheet use same-origin, framework-free assets;
 see [browser ADR](adr/005-browser-board.md). Runtime config and credentials are never image assets.
 
+The optional [Home Assistant adapter](home-assistant.md) lives in
+`app/integrations/home_assistant.py`; it consumes the existing provider/cache and
+normalised models on demand. No HA dependency, background polling or core feed
+change. The app only registers its router and validates its route query.
+
 ## Rail Data budget (four weeks)
 
 Quota: **5,000,000 calls per 28 days** (2,419,200 seconds); confirm the subscription's

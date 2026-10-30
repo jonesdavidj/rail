@@ -113,6 +113,7 @@ strings masquerading as numeric route settings are rejected.
 |---|---|
 | GET /api/health | Local responsiveness, provider configuration readiness, config source/warning and board refresh interval; no upstream call |
 | GET /api/routes | Saved route records in order |
+| GET /api/summary?route=out | Optional Home Assistant summary, ETA and two-hour disruption counts; [examples and limits](docs/home-assistant.md) |
 | POST /api/routes | Create a route from a JSON route record; optional `add_return_journey: true`; returns complete saved list, HTTP 201 |
 | PUT /api/routes | Replace the route identified by the JSON record's `id`; same optional return flag; returns complete saved list |
 | DELETE /api/routes?id=out | Remove one saved route; returns complete saved list |
