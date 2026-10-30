@@ -85,3 +85,4 @@ Not completed/proven, and deliberately not implemented here:
 
 The final board UI/editor and station autocomplete UI remain later-phase work;
 Prompt 2 delivered API endpoints and a minimal preview, not those screens.
+Those screens are subsequently implemented by [ADR 005](adr/005-browser-board.md).

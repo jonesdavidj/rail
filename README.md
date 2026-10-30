@@ -1,8 +1,8 @@
 # Rail
 
-A small home-server departure board. Phase 2 adds the RDM REST provider, memory
-caching, station search and persisted route management. The page remains a minimal
-API preview; the final departure-board UI is a later phase.
+A small home-server departure board with a dark amber display, saved route tabs,
+expandable stops and a settings sheet. RDM REST data stays server-side, with memory
+caching, station search and persisted route management.
 
 ## Run
 
@@ -15,7 +15,10 @@ pip install -r requirements-dev.txt
 RAIL_DATA_PATH="$PWD/work/data" uvicorn app.main:app --host 127.0.0.1 --port 8080 --no-access-log --log-config app/logging.json
 ```
 
-Open http://localhost:8080. With no key/file configured, `RAIL_PROVIDER=auto`
+Open http://localhost:8080. Use the settings button beside the London clock to
+add, edit, reorder or remove journeys. Select stations from search results; the
+return checkbox creates both directions atomically. Walking time hides departures
+leaving too soon. With no key/file configured, `RAIL_PROVIDER=auto`
 (default) uses clearly labelled synthetic Demo boards. Demo includes delays,
 cancellations, variable lengths, missing platforms and replacement buses. It never
 represents real trains. `demo` forces Demo; `rail_data` explicitly requests live.
@@ -51,7 +54,7 @@ Cache key: (origin, destination, offset). TTL is shared across clients, concurre
 requests coalesce, errors have retry cooldowns and stale-on-error retains the last
 good board for at most 15 minutes **from its successful fetch**. The API exposes
 `stale`, `error`, `error_code`, `cache_age_seconds` and feed `generated_at`; the
-preview labels stale boards visibly. Older boards are not served after an error.
+board labels stale boards visibly. Older boards are not served after an error.
 Only validated boards enter the cache. The cache holds up to 256 completed entries
 and is in memory only. Run one worker. See the [5-million-call budget](docs/api-budget.md).
 
@@ -108,11 +111,12 @@ strings masquerading as numeric route settings are rejected.
 
 | Endpoint | Behaviour |
 |---|---|
-| GET /api/health | Local responsiveness, provider configuration readiness, config source/warning and preview refresh interval; no upstream call |
+| GET /api/health | Local responsiveness, provider configuration readiness, config source/warning and board refresh interval; no upstream call |
 | GET /api/routes | Saved route records in order |
 | POST /api/routes | Create a route from a JSON route record; optional `add_return_journey: true`; returns complete saved list, HTTP 201 |
 | PUT /api/routes | Replace the route identified by the JSON record's `id`; same optional return flag; returns complete saved list |
 | DELETE /api/routes?id=out | Remove one saved route; returns complete saved list |
+| PUT /api/routes/order | Save `{ "ids": ["back", "out"] }` as an atomic permutation; stale/missing/duplicate IDs return 409 |
 | GET /api/stations?q=waterloo | Case-insensitive CRS/name search, code/name prefixes and word prefixes; at most 10 results |
 | GET /api/board?route=out&offset=0 | Normalised board and freshness/error metadata |
 
@@ -130,7 +134,7 @@ updates to the same route are last-write-wins.
 Route is required for a board. Offset is an integer -60..119 (default 0), unknown
 or repeated query parameters are rejected. A 120-minute window is paged by the
 prototype cursor (last displayed departure minute + 1, capped at 119). Earlier
-initially requests -45; the preview remembers previous offsets. Walking time
+initially requests -45; the board remembers previous offsets. Walking time
 filters current/future scheduled departures, not the historical Earlier window.
 These are moving windows, not snapshots; same-minute boundary trains can be
 skipped. Runtime RDM limits remain to be confirmed as documented in the contract note.
@@ -151,8 +155,9 @@ coverage and intermediate-destination behaviour need live review.
 There is no app login. Remote access **must** be protected by Cloudflare Access.
 Without ADMIN_TOKEN all users who can reach the app can edit routes. Set the
 optional ADMIN_TOKEN to require `Authorization: Bearer <token>` for POST/PUT/DELETE.
-It does not affect reads and is not a substitute for Access. The preview does not
-contain a token or a route editor; use authenticated API calls for now.
+It does not affect reads and is not a substitute for Access. When editing is protected, the settings sheet accepts the token for that open
+session only; it is cleared on close and is never stored in localStorage. No Rail
+Data key is sent to the browser.
 
 `compose.yaml` uses Portainer variables, host port 8097, a local named `rail-data`
 volume at /data, restart unless-stopped, TZ=Europe/London and linux/amd64. No NAS,
@@ -195,9 +200,29 @@ python -m pytest
 
 Tests are focused on normalisation, midnight/arrival/cancellation, paging, config
 and error mapping, with two complete live fixtures and minimal in-code examples for uncovered branches. They block network access.
-No browser suite, snapshots, coverage gates, type checker or transport/concurrency
-harness. A single Demo container smoke check is used locally when validating image changes.
+No committed browser suite, snapshots, coverage gates, type checker or
+transport/concurrency harness. Frontend review uses throwaway Playwright captures
+with [screenshots and findings](docs/screenshots/README.md). A single Demo container smoke check is used locally when validating image changes.
 CI retains main's lean Ruff/pytest and Docker Hub publication workflow. Existing broad phase-1 matrices
 and trivial framework/logging tests were removed to follow the current policy.
 Dependencies remain pinned; application and Uvicorn logs are JSON without raw
 paths, query strings, credentials or payloads. ADRs are in docs/adr/.
+
+## Board behaviour and iPhone Home Screen
+
+Tabs come from saved routes. `?route=<id>` deep links override the device's last
+selected tab. Station notices are collapsed beneath a single Notices line, with
+open/closed state remembered per route during the session. Stops stay expanded
+through updates without replaying their opening animation. Default refresh is
+30 seconds, paused while the page is hidden; returning refreshes immediately.
+The London clock is explicit, including BST/GMT changes. Keyboard arrows/Home/End
+navigate tabs; station search uses arrows/Enter/Escape; settings uses a native
+modal dialog. Reduced-motion preferences disable stop animation.
+
+On iPhone, open the HTTPS site in Safari, choose Share → Add to Home Screen, then
+Add. The local manifest and icons support a standalone window. All fonts/assets
+and API requests are same-origin; no external runtime frontend resources or
+framework. Offline departure caching is disabled; the board shows a connection
+error when it cannot refresh. Cloudflare Access still protects the installed app.
+See [ADR 005](docs/adr/005-browser-board.md) for state, storage and accessibility
+choices and the visual-review limits.

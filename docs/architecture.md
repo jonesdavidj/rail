@@ -9,5 +9,5 @@ main.py is the HTTP boundary; config.py validates models/settings; routes.py own
 atomic JSON persistence; providers.py supplies Demo; rail_data.py implements the
 RDM client, shared TTL cache and coalescing. normalise.py maps raw data into
 models.py; paging.py builds pages; stations.py searches the bundled catalogue.
-__main__.py performs deliberate one-request live diagnostics. The minimal static
-preview is not a final UI. Runtime config and credentials are never image assets.
+__main__.py performs deliberate one-request live diagnostics. The static board and settings sheet use same-origin, framework-free assets;
+see [browser ADR](adr/005-browser-board.md). Runtime config and credentials are never image assets.
