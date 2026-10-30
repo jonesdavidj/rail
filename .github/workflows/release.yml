@@ -1,0 +1,81 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'New version tag, e.g. v1.0.0 (main image must already be published)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: rail-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      VERSION: ${{ inputs.version }}
+      IMAGE: docker.io/${{ secrets.DOCKERHUB_USERNAME }}/rail
+    steps:
+      - name: Validate release request
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REF" == refs/heads/main ]] || { echo 'Run releases from main.' >&2; exit 1; }
+          [[ "$VERSION" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || {
+            echo 'Use vX.Y.Z without leading zeroes or prerelease suffixes.' >&2; exit 1;
+          }
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - name: Check Git tag is not being moved
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git show-ref --verify --quiet "refs/tags/$VERSION"; then
+            [[ "$(git rev-list -n 1 "$VERSION")" == "$GITHUB_SHA" ]] || {
+              echo 'Version already tags a different commit; choose a new version.' >&2; exit 1;
+            }
+          fi
+      - uses: docker/setup-buildx-action@v3
+      - name: Docker Hub login
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Promote published SHA image without replacing a version
+        shell: bash
+        run: |
+          set -euo pipefail
+          source="$IMAGE:sha-${GITHUB_SHA:0:7}"
+          # This fails if main CI has not published this exact commit's image.
+          digest=$(docker buildx imagetools inspect "$source" --format '{{json .Manifest}}' | jq -er '.digest')
+          if docker buildx imagetools inspect "$IMAGE:$VERSION" --format '{{json .Manifest}}' > existing.json 2> registry-error.txt; then
+            [[ "$(jq -er '.digest' existing.json)" == "$digest" ]] || {
+              echo 'Version image already exists with different content; refusing to replace it.' >&2; exit 1;
+            }
+          else
+            # Fail closed on login/network errors; only a missing tag permits publication.
+            if ! grep -Eqi 'not found|manifest unknown|no such manifest' registry-error.txt; then
+              cat registry-error.txt >&2; exit 1
+            fi
+            docker buildx imagetools create --prefer-index=false --tag "$IMAGE:$VERSION" "$IMAGE@$digest"
+          fi
+          echo "Released $IMAGE:$VERSION from $source ($digest)" >> "$GITHUB_STEP_SUMMARY"
+      - name: Publish matching Git version tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! git show-ref --verify --quiet "refs/tags/$VERSION"; then
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git tag -a "$VERSION" "$GITHUB_SHA" -m "Rail $VERSION"
+            git push origin "refs/tags/$VERSION"
+          fi
