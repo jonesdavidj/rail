@@ -96,6 +96,7 @@ loads them. Manual file edits require restart. Never put this file in Git/image.
     "origin": "SUR",
     "destination": "WAT",
     "min_departure_minutes": 8,
+    "fast_max_stops": 1,
     "page_size": 7
   }]
 }
@@ -104,7 +105,7 @@ loads them. Manual file edits require restart. Never put this file in Git/image.
 Limits: 0–32 routes, unique 1–64-character ASCII letter/digit/underscore/hyphen IDs
 starting with a letter/digit, visible labels up to 100 characters, distinct uppercase
 three-letter catalogue CRS codes, walking time 0–120 (default 0), page size 1–25
-(default 7), version 1 and a 256,000-byte config limit. Unknown fields, booleans or
+(default 7), fast_max_stops 0–5 (default 1), version 1 and a 256,000-byte config limit. Unknown fields, booleans or
 strings masquerading as numeric route settings are rejected.
 
 ## API
@@ -231,3 +232,26 @@ framework. Offline departure caching is disabled; the board shows a connection
 error when it cannot refresh. Cloudflare Access still protects the installed app.
 See [ADR 005](docs/adr/005-browser-board.md) for state, storage and accessibility
 choices and the visual-review limits.
+
+## Fast trains
+
+Settings → edit journey sets **Fast means at most N intermediate stops**, 0–5,
+default 1. Existing config files acquire this default on load; return journeys
+copy the threshold. Fast excludes cancelled/destination-call-cancelled services,
+replacement buses and unknown stop counts. The green edge and explicit Fast pill
+leave destination colours unchanged. Journey minutes use both expected times
+when known, otherwise both planned; midnight wraps correctly. Quickest marks
+one non-cancelled minimum-duration journey on the displayed list (first on ties).
+
+All trains / Fast only is remembered per route on the device. `fast=1` on
+`/api/board` filters before paging without changing the ten-row/120-minute RDM
+request or its shared cache key. The cursor consumes intervening slow/cancelled
+rows, leaving overflow fast rows for Later. Sparse and empty fast pages can
+continue paging; the scan stays inside the existing two-hour horizon. The button
+count is displayed fast rows out of rows examined for this page (All mode uses
+the displayed page); filtered batches can therefore have a different denominator.
+Demo now uses the same ten-row cap as RDM.
+
+Saving routes writes the new field. Images predating this field reject unknown
+config keys: use a compatible route backup when rolling back to those images,
+or they will serve defaults while retaining the unreadable config file.

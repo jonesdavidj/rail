@@ -41,3 +41,24 @@ Review and corrections:
 Physical iPhone installation/VoiceOver and real wall-tablet hardware were not
 available. Manifest and icons are supplied; confirm Safari Add to Home Screen
 and physical-device ergonomics after deployment. No live feed key was used.
+
+## Fast-train review — 2026-10-30
+
+Throwaway Chromium/Playwright script at 390 × 844, mobile/touch, using Demo:
+
+| Scene | Screenshot |
+|---|---|
+| All trains | [fast-all-390.png](fast-all-390.png) |
+| Fast only | [fast-only-390.png](fast-only-390.png) |
+| Fast row | [fast-row-390.png](fast-row-390.png) |
+| Slow row | [slow-row-390.png](slow-row-390.png) |
+| Cancelled row | [fast-cancelled-390.png](fast-cancelled-390.png) |
+| Threshold setting | [fast-settings-390.png](fast-settings-390.png) |
+| No fast trains (N=0) | [fast-empty-390.png](fast-empty-390.png) |
+
+Reviewed green 3px edges/pills, unchanged destinations, durations and one Quickest
+label. Kept duration numbers/units and Fast/stop-count groups together after the
+first capture wrapped them poorly. Green #73d99a has 11.49:1 contrast on #0a0907.
+Checked filter persistence through reload, saved N=0/1, and paging from the empty
+fast state. No horizontal overflow or JavaScript errors. Restored the demo route
+threshold to 1. Script stays in ignored work/; no browser tests committed.
