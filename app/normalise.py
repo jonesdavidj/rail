@@ -1,7 +1,7 @@
-"""Defensive adapter for the provisional public Darwin JSON shape.
+"""Defensive adapter for the public Darwin JSON shape inspected in ldbws.json.
 
 No network I/O. Unknown values remain unknown; malformed services are skipped.
-The current official contract must be verified before the live provider is enabled.
+Current RDM runtime limits and populated fields still need a key-assisted live check.
 """
 
 import hashlib

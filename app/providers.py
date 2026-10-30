@@ -5,31 +5,22 @@ from typing import Literal, Protocol
 
 from app.config import STATIONS, Route
 from app.normalise import LONDON, Raw
-
-
-class ProviderUnavailable(Exception):
-    """A safe, public provider error; never includes credentials or payloads."""
+from app.rail_data import ProviderBoard
 
 
 class DepartureProvider(Protocol):
     mode: Literal["demo", "rail_data"]
+    ready: bool
 
-    def board(self, route: Route, offset: int, now: datetime) -> Raw: ...
-
-
-class RailDataProvider:
-    """Phase-2 boundary: fail explicitly rather than pretending to serve live trains."""
-
-    mode: Literal["demo", "rail_data"] = "rail_data"
-
-    def board(self, route: Route, offset: int, now: datetime) -> Raw:
-        raise ProviderUnavailable("Live Rail Data integration is not implemented in phase 1")
+    def board(self, route: Route, offset: int, now: datetime) -> ProviderBoard: ...
 
 
 class DemoProvider:
     mode: Literal["demo", "rail_data"] = "demo"
 
-    def board(self, route: Route, offset: int, now: datetime) -> Raw:
+    ready = True
+
+    def board(self, route: Route, offset: int, now: datetime) -> ProviderBoard:
         """Stable clock-anchored services, so refresh/paging don't regenerate identities.
 
         All routes are synthetic, including their timings and stopping patterns.
@@ -99,9 +90,11 @@ class DemoProvider:
                     "subsequentCallingPoints": [{"callingPoint": stops}],
                 }
             )
-        return {
-            "generatedAt": now.isoformat(),
-            "trainServices": services,
-            "areServicesAvailable": True,
-            "nrccMessages": [{"Value": "Demo data. These are not real trains."}],
-        }
+        return ProviderBoard(
+            {
+                "generatedAt": now.isoformat(),
+                "trainServices": services,
+                "areServicesAvailable": True,
+                "nrccMessages": [{"Value": "Demo data. These are not real trains."}],
+            }
+        )

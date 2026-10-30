@@ -23,8 +23,8 @@ async function load() {
     const query = new URLSearchParams({route: route.value, offset: offsets.at(-1)});
     const response = await fetch("/api/board?" + query);
     const data = await response.json();
-    if (!response.ok) throw new Error(data.detail || "Could not load board");
-    output.textContent = JSON.stringify(data, null, 2);
+    if (!response.ok) throw new Error(data.error || data.detail || "Could not load board");
+    output.textContent = (data.stale ? "STALE DATA — " + data.error + "\n\n" : "") + JSON.stringify(data, null, 2);
     next = data.next_offset;
     earlier.disabled = offsets.length === 1 && data.earlier_offset === null;
     later.disabled = !data.has_next;
@@ -37,13 +37,16 @@ async function start() {
   try {
     const health = await (await fetch("/api/health")).json();
     document.getElementById("mode").textContent = health.demo
-      ? "DEMO DATA — these are not real trains." : "Live provider unavailable in phase 1.";
+      ? "DEMO DATA — these are not real trains." : "Live Rail Data provider (see board for errors/freshness).";
     const routes = await (await fetch("/api/routes")).json();
     for (const item of routes) {
       const option = document.createElement("option");
       option.value = item.id; option.textContent = item.label; route.append(option);
     }
-    if (routes.length) await load(); else output.textContent = "No saved routes.";
+    if (routes.length) {
+      await load();
+      setInterval(() => { if (!document.hidden) load(); }, health.refresh_seconds * 1000);
+    } else output.textContent = "No saved routes.";
   } catch (error) { output.textContent = String(error); }
 }
 start();
