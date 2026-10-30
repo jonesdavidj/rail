@@ -980,3 +980,37 @@ dialog[open] {
 .state-actions {display:flex;gap:10px;justify-content:center;flex-wrap:wrap;}
 .tabs {padding:6px;margin:-6px;}
 .station-option[aria-selected=true] {box-shadow:inset 3px 0 var(--amber);}
+
+/* Fast is an explicit label; destination and status colours remain independent. */
+.train-filter {
+  display: flex;
+  margin: 0 0 16px;
+}
+.train-filter button {
+  border: 1px solid var(--rule);
+  border-radius: 0;
+  min-height: 42px;
+  padding: 8px 12px;
+}
+.train-filter button:first-child { border-radius: 4px 0 0 4px; }
+.train-filter button:last-child { border-radius: 0 4px 4px 0; margin-left: -1px; }
+.train-filter button[aria-pressed=true] {
+  background: var(--amber);
+  color: var(--ink);
+  border-color: var(--amber);
+  font-weight: bold;
+}
+.service.fast { box-shadow: inset 3px 0 #73d99a; }
+.fast-pill {
+  color: #73d99a;
+  border: 1px solid #73d99a;
+  border-radius: 3px;
+  padding: 0 4px;
+  white-space: nowrap;
+}
+.quickest { color: var(--white); white-space: nowrap; }
+.fast-setting { margin-top: 22px; }
+.fast-setting .number-field { align-items: center; }
+.fast-setting .number-field span { line-height: 1.5; }
+
+.stop-summary, .journey-time { white-space: nowrap; }

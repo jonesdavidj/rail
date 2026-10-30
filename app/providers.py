@@ -5,7 +5,7 @@ from typing import Literal, Protocol
 
 from app.config import STATIONS, Route
 from app.normalise import LONDON, Raw
-from app.rail_data import ProviderBoard
+from app.rail_data import BOARD_ROWS, ProviderBoard
 
 
 class DepartureProvider(Protocol):
@@ -128,7 +128,7 @@ class DemoProvider:
         return ProviderBoard(
             {
                 "generatedAt": now.isoformat(),
-                "trainServices": services,
+                "trainServices": services[:BOARD_ROWS],
                 "areServicesAvailable": True,
                 "nrccMessages": [
                     {"Value": "Demo data. These are not real trains."},

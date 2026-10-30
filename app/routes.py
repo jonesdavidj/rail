@@ -58,6 +58,7 @@ class RouteStore:
                             destination=route.origin,
                             min_departure_minutes=route.min_departure_minutes,
                             page_size=route.page_size,
+                            fast_max_stops=route.fast_max_stops,
                         )
                     )
             config = RouteConfig(routes=routes)

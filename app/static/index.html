@@ -29,6 +29,10 @@
         </button>
       </div>
     </header>
+    <div class="train-filter" role="group" aria-label="Train filter">
+      <button id="filter-all" type="button" aria-pressed="true">All trains</button>
+      <button id="filter-fast" type="button" aria-pressed="false">Fast only</button>
+    </div>
     <div id="mode" class="mode" hidden><strong>DEMO</strong><span>Sample departures. These are not real trains.</span></div>
     <div id="board-error" class="alert" role="status" hidden></div>
     <section id="departures" role="tabpanel" tabindex="-1" aria-label="Departures">
@@ -55,6 +59,7 @@
         <div class="station-field"><label for="from">From</label><input id="from" type="search" placeholder="Station name or code" autocomplete="off" spellcheck="false" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="from-results" aria-describedby="from-hint" required maxlength="100"><div id="from-results" class="station-results" role="listbox" aria-label="Departure stations" hidden></div><p class="hint" id="from-hint" aria-live="polite">Search and select a station.</p></div>
         <div class="station-field"><label for="to">To</label><input id="to" type="search" placeholder="Station name or code" autocomplete="off" spellcheck="false" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="to-results" aria-describedby="to-hint" required maxlength="100"><div id="to-results" class="station-results" role="listbox" aria-label="Destination stations" hidden></div><p class="hint" id="to-hint" aria-live="polite">Search and select a station.</p></div>
         <div class="form-grid"><div><label for="label">Tab name <span class="hint">(optional)</span></label><input id="label" type="text" placeholder="Use station names" maxlength="100"></div><div><label for="walking">Hide trains leaving in under</label><div class="number-field"><input id="walking" type="number" inputmode="numeric" min="0" max="120" step="1" placeholder="0" aria-describedby="walking-unit"><span id="walking-unit">minutes</span></div></div></div>
+        <div class="fast-setting"><label for="fast-max">Fast means at most</label><div class="number-field"><input id="fast-max" type="number" inputmode="numeric" min="0" max="5" step="1" value="1" required aria-describedby="fast-help"><span>stops before <span id="fast-destination">the destination</span></span></div><p class="hint" id="fast-help">Counts intermediate stops, not the destination. 0 means non-stop.</p></div>
         <label class="checkbox" id="return-option"><input id="add-return" type="checkbox"><span>Add the return journey too</span></label>
         <button class="primary" id="save-route" type="submit">Add journey</button>
       </form>

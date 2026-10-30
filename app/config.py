@@ -31,6 +31,7 @@ class Route(BaseModel):
     destination: CRS
     min_departure_minutes: int = Field(default=0, ge=0, le=120)
     page_size: int = Field(default=7, ge=1, le=25)
+    fast_max_stops: int = Field(default=1, ge=0, le=5)
 
     @field_validator("origin", "destination")
     @classmethod
