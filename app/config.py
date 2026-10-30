@@ -142,3 +142,8 @@ class Settings(BaseModel):
 
 class RouteWrite(Route):
     add_return_journey: bool = False
+
+
+class RouteOrder(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    ids: list[RouteID] = Field(max_length=32)

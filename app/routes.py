@@ -61,23 +61,34 @@ class RouteStore:
                         )
                     )
             config = RouteConfig(routes=routes)
-            self.path.parent.mkdir(parents=True, exist_ok=True)
-            temporary: Path | None = None
-            try:
-                with tempfile.NamedTemporaryFile(
-                    mode="w",
-                    encoding="utf-8",
-                    dir=self.path.parent,
-                    prefix=".routes-",
-                    delete=False,
-                ) as handle:
-                    temporary = Path(handle.name)
-                    handle.write(config.model_dump_json(indent=2) + "\n")
-                    handle.flush()
-                    os.fsync(handle.fileno())
-                os.replace(temporary, self.path)
-            finally:
-                if temporary is not None:
-                    temporary.unlink(missing_ok=True)
-            self.loaded = ConfigLoad(config=config, source="file")
-            return list(config.routes)
+            return self.save(config)
+
+    def reorder(self, ids: list[str]) -> list[Route]:
+        with self.lock:
+            current = {route.id: route for route in self.loaded.config.routes}
+            if len(ids) != len(current) or set(ids) != set(current):
+                raise RouteConflict("Routes have changed; reload settings and try again")
+            return self.save(RouteConfig(routes=[current[identity] for identity in ids]))
+
+    def save(self, config: RouteConfig) -> list[Route]:
+        """Called under the store lock, after validating the entire resulting list."""
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        temporary: Path | None = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="w",
+                encoding="utf-8",
+                dir=self.path.parent,
+                prefix=".routes-",
+                delete=False,
+            ) as handle:
+                temporary = Path(handle.name)
+                handle.write(config.model_dump_json(indent=2) + "\n")
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(temporary, self.path)
+        finally:
+            if temporary is not None:
+                temporary.unlink(missing_ok=True)
+        self.loaded = ConfigLoad(config=config, source="file")
+        return list(config.routes)

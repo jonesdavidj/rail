@@ -185,6 +185,8 @@ def normalise_service(raw: Raw, destination: str, now: datetime) -> Service | No
         stops=stops,
         stop_count=max(len(stops) - 1, 0) if stops else None,
         service_type=kind,
+        future_delay=field(raw, "futureDelay") is True,
+        future_cancellation=field(raw, "futureCancellation") is True,
     )
 
 
@@ -220,6 +222,6 @@ def normalise_board(raw: object, destination: str, now: datetime) -> NormalisedB
     return NormalisedBoard(
         generated_at=generated,
         services=services,
-        messages=[message for message in messages if message][:3],
+        messages=[message for message in messages if message],
         services_available=field(raw, "areServicesAvailable") is not False,
     )

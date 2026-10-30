@@ -44,6 +44,8 @@ class Service(BaseModel):
     stops: list[Stop] = Field(default_factory=list)
     stop_count: int | None = None
     service_type: Literal["train", "bus"] = "train"
+    future_delay: bool = False
+    future_cancellation: bool = False
 
 
 class NormalisedBoard(BaseModel):

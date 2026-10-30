@@ -1,55 +1,65 @@
 <!doctype html>
 <html lang="en-GB">
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Rail API preview</title>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#0a0907">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Rail">
+  <title>Rail · Departures</title>
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/static/icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="/static/board.css">
+  <script src="/static/board.js" defer></script>
+</head>
 <body>
-<h1>Rail API preview</h1>
-<p id="mode">Loading provider status…</p>
-<label>Route <select id="route"></select></label>
-<button id="earlier">Earlier trains</button>
-<button id="later">Later trains</button>
-<pre id="board" aria-live="polite"></pre>
-<script>
-"use strict";
-const route = document.getElementById("route");
-const output = document.getElementById("board");
-const earlier = document.getElementById("earlier");
-const later = document.getElementById("later");
-let offsets = [0], next = null;
-async function load() {
-  earlier.disabled = later.disabled = true;
-  try {
-    const query = new URLSearchParams({route: route.value, offset: offsets.at(-1)});
-    const response = await fetch("/api/board?" + query);
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error || data.detail || "Could not load board");
-    output.textContent = (data.stale ? "STALE DATA — " + data.error + "\n\n" : "") + JSON.stringify(data, null, 2);
-    next = data.next_offset;
-    earlier.disabled = offsets.length === 1 && data.earlier_offset == null;
-    later.disabled = !data.has_next;
-  } catch (error) { output.textContent = String(error); }
-}
-route.onchange = () => { offsets = [0]; load(); };
-earlier.onclick = () => { if (offsets.length > 1) offsets.pop(); else offsets = [-45]; load(); };
-later.onclick = () => { if (next != null) { offsets.push(next); load(); } };
-async function start() {
-  try {
-    const health = await (await fetch("/api/health")).json();
-    document.getElementById("mode").textContent = health.demo
-      ? "DEMO DATA — these are not real trains." : "Live Rail Data provider (see board for errors/freshness).";
-    const routes = await (await fetch("/api/routes")).json();
-    for (const item of routes) {
-      const option = document.createElement("option");
-      option.value = item.id; option.textContent = item.label; route.append(option);
-    }
-    if (routes.length) {
-      await load();
-      setInterval(() => { if (!document.hidden) load(); }, health.refresh_seconds * 1000);
-    } else output.textContent = "No saved routes.";
-  } catch (error) { output.textContent = String(error); }
-}
-start();
-</script>
+  <a class="skip" href="#departures">Skip to departures</a>
+  <main>
+    <div class="masthead"><span class="brand"><span aria-hidden="true">↔</span> RAIL</span><span>YOUR DEPARTURE BOARD</span></div>
+    <nav class="tabs" id="tabs" role="tablist" aria-label="Saved routes"></nav>
+    <header class="board-head">
+      <div class="route-heading"><p id="route-codes" class="eyebrow">DEPARTURES</p><h1 id="title">Your departures</h1></div>
+      <div class="head-tools"><div class="clock-wrap"><span class="eyebrow">LONDON TIME</span><time id="clock" aria-label="Current London time">--:--</time></div>
+        <button class="icon-button" id="settings-open" type="button" aria-label="Route settings" aria-haspopup="dialog">
+          <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="m9 3-.7 2.3-2 .9L4 5.8 2.5 8.4l1.7 1.7v2.3l-1.7 1.7L4 16.7l2.3-.4 2 .9L9 19.5h3l.7-2.3 2-.9 2.3.4 1.5-2.6-1.7-1.7v-2.3l1.7-1.7L17 5.8l-2.3.4-2-.9L12 3Z" transform="translate(1.5 1)"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+      </div>
+    </header>
+    <div id="mode" class="mode" hidden><strong>DEMO</strong><span>Sample departures. These are not real trains.</span></div>
+    <div id="board-error" class="alert" role="status" hidden></div>
+    <section id="departures" role="tabpanel" tabindex="-1" aria-label="Departures">
+      <div class="columns" aria-hidden="true"><span>LEAVES</span><span>TO</span><span>PLAT</span><span>ARRIVES</span></div>
+      <div id="board-state" class="state" role="status"><h2>Loading your routes…</h2><p>Your departure board will appear here.</p></div>
+      <ul id="services" class="services" aria-label="Departing services"></ul>
+      <details id="notices" class="notices" hidden><summary>Notices <span id="notice-count" class="count"></span></summary><div id="notice-content"></div></details>
+      <div class="pager"><button id="earlier" type="button" disabled><span aria-hidden="true">←</span> Earlier trains</button><button id="later" type="button" disabled>Later trains <span aria-hidden="true">→</span></button></div>
+      <button id="return-now" class="text-button return-now" type="button" hidden>Back to next departures</button>
+      <footer><span id="updated">Waiting for the first update</span><span id="refresh-note">Refreshes every 30 seconds</span><span>Direct services · National Rail Darwin</span></footer>
+    </section>
+    <p id="announcement" class="sr-only" role="status" aria-live="polite"></p>
+    <noscript><p class="alert">Enable JavaScript to load departures and manage routes.</p></noscript>
+  </main>
+
+  <dialog id="settings" aria-labelledby="settings-title">
+    <div class="sheet-head"><div><p class="eyebrow">MAKE IT YOUR JOURNEY</p><h2 id="settings-title">Route settings</h2></div><button id="settings-close" class="icon-button" type="button" aria-label="Close settings">×</button></div>
+    <div class="sheet-body">
+      <div id="settings-message" class="form-message" role="status" hidden></div>
+      <div id="token-section" class="token-section" hidden><label for="admin-token">Editing token</label><input id="admin-token" type="password" autocomplete="off" spellcheck="false"><p class="hint">Route editing is protected. The token is used only while this sheet is open.</p></div>
+      <section aria-labelledby="saved-heading"><div class="section-heading"><h3 id="saved-heading">Saved routes</h3><span class="hint">Tab order</span></div><ul id="saved-routes" class="saved-routes"></ul></section>
+      <form id="route-form">
+        <div class="section-heading"><h3 id="form-heading">Add a journey</h3><button id="cancel-edit" class="text-button" type="button" hidden>Cancel edit</button></div>
+        <div class="station-field"><label for="from">From</label><input id="from" type="search" placeholder="Station name or code" autocomplete="off" spellcheck="false" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="from-results" aria-describedby="from-hint" required maxlength="100"><div id="from-results" class="station-results" role="listbox" aria-label="Departure stations" hidden></div><p class="hint" id="from-hint" aria-live="polite">Search and select a station.</p></div>
+        <div class="station-field"><label for="to">To</label><input id="to" type="search" placeholder="Station name or code" autocomplete="off" spellcheck="false" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="to-results" aria-describedby="to-hint" required maxlength="100"><div id="to-results" class="station-results" role="listbox" aria-label="Destination stations" hidden></div><p class="hint" id="to-hint" aria-live="polite">Search and select a station.</p></div>
+        <div class="form-grid"><div><label for="label">Tab name <span class="hint">(optional)</span></label><input id="label" type="text" placeholder="Use station names" maxlength="100"></div><div><label for="walking">Hide trains leaving in under</label><div class="number-field"><input id="walking" type="number" inputmode="numeric" min="0" max="120" step="1" placeholder="0" aria-describedby="walking-unit"><span id="walking-unit">minutes</span></div></div></div>
+        <label class="checkbox" id="return-option"><input id="add-return" type="checkbox"><span>Add the return journey too</span></label>
+        <button class="primary" id="save-route" type="submit">Add journey</button>
+      </form>
+      <p class="sheet-foot">Routes are shared across your devices. Your last selected tab is remembered on this device.</p>
+    </div>
+  </dialog>
 </body>
 </html>

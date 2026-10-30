@@ -41,14 +41,45 @@ class DemoProvider:
             arrival = departure + timedelta(minutes=45 if bus else 24)
             stops: list[Raw] = []
             if {route.origin, route.destination} == {"SUR", "WAT"}:
-                stops.append(
-                    {
-                        "locationName": "Clapham Junction",
-                        "crs": "CLJ",
-                        "st": (departure + timedelta(minutes=14)).strftime("%H:%M"),
-                        "et": "On time",
-                    }
-                )
+                if index % 2:
+                    calls = [
+                        ("NEM", 4),
+                        ("RAY", 7),
+                        ("WIM", 11),
+                        ("EAD", 15),
+                        ("CLJ", 18),
+                        ("VXH", 22),
+                    ]
+                    if route.origin == "WAT":
+                        calls = [
+                            ("VXH", 4),
+                            ("CLJ", 8),
+                            ("EAD", 12),
+                            ("WIM", 16),
+                            ("RAY", 19),
+                            ("NEM", 22),
+                        ]
+                    arrival = departure + timedelta(minutes=45 if bus else 26)
+                else:
+                    calls = [("CLJ", 14 if route.origin == "SUR" else 8)]
+                for code, minutes in calls:
+                    stops.append(
+                        {
+                            "locationName": STATIONS[code],
+                            "crs": code,
+                            "st": (departure + timedelta(minutes=minutes)).strftime("%H:%M"),
+                            "et": "Cancelled"
+                            if cancelled
+                            else (
+                                (departure + timedelta(minutes=minutes + 7)).strftime("%H:%M")
+                                if scenario == 1
+                                else "Delayed"
+                                if scenario == 2
+                                else "On time"
+                            ),
+                            "isCancelled": cancelled,
+                        }
+                    )
             stops.append(
                 {
                     "locationName": STATIONS[route.destination],
@@ -81,6 +112,8 @@ class DemoProvider:
                     "isCancelled": cancelled,
                     "serviceType": "bus" if bus else "train",
                     "length": None if scenario in (4, 7) else [5, 8, 10, 12][index % 4],
+                    "futureDelay": scenario == 5,
+                    "futureCancellation": scenario == 6,
                     "cancelReason": "Demo: shortage of train crew" if cancelled else "",
                     "delayReason": "Demo: signalling fault" if scenario in (1, 2) else "",
                     "origin": [{"locationName": STATIONS[route.origin], "crs": route.origin}],
@@ -95,6 +128,12 @@ class DemoProvider:
                 "generatedAt": now.isoformat(),
                 "trainServices": services,
                 "areServicesAvailable": True,
-                "nrccMessages": [{"Value": "Demo data. These are not real trains."}],
+                "nrccMessages": [
+                    {"Value": "Demo data. These are not real trains."},
+                    {
+                        "Value": "Demo station notice: The lift to platforms 1 and 2 "
+                        "is unavailable. Please allow extra time for your journey."
+                    },
+                ],
             }
         )
