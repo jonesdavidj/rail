@@ -1,0 +1,7 @@
+title = "Template gitleaks config"
+
+[allowlist]
+description = "Global allowlist"
+paths = [
+  '''docs/''',
+]

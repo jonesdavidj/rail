@@ -1,0 +1,13 @@
+.git
+.github
+.devcontainer
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.log
+.env
+.env.*
+node_modules/
+docs/
+compose/
