@@ -104,8 +104,8 @@ def parse_board(body: bytes, destination: str, now: datetime) -> Raw:
         raise ProviderError("response_size", "Rail Data response exceeded the size limit.")
     try:
         raw = json.loads(body)
-        if not isinstance(raw, dict) or not any(
-            key in raw for key in ("trainServices", "busServices", "areServicesAvailable")
+        if not isinstance(raw, dict) or not {name.casefold() for name in raw}.intersection(
+            {"trainservices", "busservices", "areservicesavailable"}
         ):
             raise ValueError("not a board")
         normalise_board(raw, destination, now)
@@ -183,7 +183,7 @@ class RailDataProvider:
                 "filterType": "to",
                 "timeOffset": offset,
                 "timeWindow": 120,
-                "numRows": 50,
+                "numRows": 10,
             }
         )
         request = urllib.request.Request(

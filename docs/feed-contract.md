@@ -1,7 +1,11 @@
 # Darwin/RDM contract inspection — 2026-10-30
 
-This is a one-time manual inspection, not a contract-test suite. The fixture in
-`tests/fixtures/board.json` is synthetic and contains no captured live data.
+Current verified facts are in AGENTS.md; see [live review](feed-review.md) for
+corrections and the complete captured-response comparison. Historical mirror inspection follows.
+
+This records the original one-time mirror inspection, not a contract-test suite.
+The synthetic board.json has since been replaced by the two complete live captures
+in tests/fixtures; their current review is linked above.
 
 ## Evidence and limitation
 
@@ -10,9 +14,8 @@ https://realtime.nationalrail.co.uk/LDBWS/static/ldbws.json
 
 This environment's outbound proxy rejects that host (HTTP CONNECT 403). The web
 connector also could not retrieve it. **The current official download and current
-RDM Specification-tab deployment limits have not been verified.** No live request
-has been attempted because no consumer key is configured. Do not treat Demo or
-fixture tests as evidence that a subscription works.
+RDM Specification-tab deployment limits have not been verified.** The user has since supplied two successful live captures. This agent has not made
+a live request; fixture parsing does not validate client transport or parameter bounds.
 
 Inspected copy:
 https://github.com/darrenparkinson/homeassistant_nationalrail/blob/main/assets/ldbws.json
@@ -33,13 +36,13 @@ product's HTTPS Specification URL and `x-apikey` as instructed by RDM/user.
 | crs | required path string, uppercase | validated route origin |
 | filterCrs | optional query string | validated destination |
 | filterType | query enum `to` / `from`, default `to` | `to` |
-| numRows | query int32, default 10 | 50, to overfetch for page size/walking filter |
+| numRows | query int32, default 10 | 10, matching the verified request in AGENTS.md |
 | timeOffset | query int32, default 0 | requested app offset (-60..119) |
 | timeWindow | query int32, default 120 | 120 |
 
 **This schema copy provides no minimum/maximum for the three integers.** The app's
 bounds and values are application policy, not asserted RDM service limits. In
-particular the prototype's upper offset 119 and the new 50-row request require
+particular the prototype's upper offset 119 requires
 validation against the subscribed Specification tab and a live `--check`. Claims
 in other developers' prose about -60..60, 1..50 or 1..300 have not been promoted
 to verified facts. If the product rejects a value, show the routing error; do not
@@ -78,7 +81,7 @@ review; this phase does not claim to resolve ambiguous date-less HH:MM values.
 ## Differences from the prototype
 
 - Correct nrccMessages[].Value casing; remove its unverified departure atd lookup.
-- Fetch 50 rows rather than 10; keep 120-minute windows and prototype offset policy.
+- Use the verified 10-row request; keep 120-minute windows and prototype offset policy.
 - Do not infer departure carriages from downstream calling points.
 - Keep unknown estimates unknown; distinguish replacement buses explicitly.
 - Preserve feed generatedAt, choose the group containing the selected destination,

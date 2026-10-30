@@ -1,7 +1,6 @@
 """Focused tests for silent data/config/paging mistakes; no exhaustive matrices."""
 
 import copy
-import json
 from datetime import datetime
 from pathlib import Path
 
@@ -17,35 +16,37 @@ from app.routes import RouteStore
 
 @pytest.fixture
 def raw() -> Raw:
-    return json.loads((Path(__file__).parent / "fixtures/board.json").read_text())
+    # Minimal synthetic data only for estimates/midnight/group branches absent in captures.
+    return {
+        "trainServices": [
+            {
+                "serviceID": "example",
+                "std": "18:05",
+                "etd": "18:12",
+                "subsequentCallingPoints": [
+                    {
+                        "callingPoint": [
+                            {"crs": "CLJ", "st": "18:19", "et": "18:26"},
+                            {"crs": "WAT", "st": "18:29", "et": "18:36"},
+                        ]
+                    }
+                ],
+            }
+        ]
+    }
 
 
-def test_delay_and_destination_arrival(raw: Raw, now: datetime) -> None:
+def test_expected_departure_delay(raw: Raw, now: datetime) -> None:
     service = normalise_board(raw, "WAT", now).services[0]
     assert (service.status, service.delay_min, service.expected) == ("late", 7, "18:12")
-    assert service.arrival and service.arrival.expected == "18:36"
-    assert service.length == 8
 
 
-def test_unknown_estimates_and_missing_length(raw: Raw, now: datetime) -> None:
-    raw["trainServices"][0].update(etd="No report", length=None, platform=None)
+def test_unknown_and_delayed_estimates(raw: Raw, now: datetime) -> None:
+    raw["trainServices"][0].update(etd="No report")
     service = normalise_board(raw, "WAT", now).services[0]
-    assert service.status == "unknown" and service.expected is None and service.length is None
+    assert service.status == "unknown" and service.expected is None
     raw["trainServices"][0]["etd"] = "Delayed"
     assert normalise_board(raw, "WAT", now).services[0].status == "delayed"
-
-
-def test_on_time(raw: Raw, now: datetime) -> None:
-    raw["trainServices"][0]["etd"] = "On time"
-    service = normalise_board(raw, "WAT", now).services[0]
-    assert service.status == "on_time" and service.delay_min == 0 and service.expected is None
-
-
-def test_cancellation_and_reason(raw: Raw, now: datetime) -> None:
-    raw["trainServices"][0].update(isCancelled=True, etd="Cancelled", cancelReason="Crew shortage")
-    service = normalise_board(raw, "WAT", now).services[0]
-    assert service.status == "cancelled" and service.reason == "Crew shortage"
-    assert service.arrival and service.arrival.cancelled
 
 
 def test_destination_group_and_partial_cancellation(raw: Raw, now: datetime) -> None:
