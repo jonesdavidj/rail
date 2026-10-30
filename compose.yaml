@@ -1,0 +1,24 @@
+services:
+  rail:
+    image: docker.io/${DOCKERHUB_USERNAME:-jonesdavidj}/rail:${RAIL_IMAGE_TAG:-main}
+    container_name: ${RAIL_CONTAINER_NAME:-rail}
+    restart: ${RAIL_RESTART_POLICY:-unless-stopped}
+    environment:
+      TZ: ${TZ:-Europe/London}
+      RAIL_DATA_API_KEY: ${RAIL_DATA_API_KEY:-}
+    ports:
+      - "${RAIL_HOST_PORT:-8097}:8097"
+    volumes:
+      - rail-data:/data
+    read_only: ${RAIL_READ_ONLY:-true}
+    tmpfs:
+      - /tmp:size=${RAIL_TMP_SIZE:-16m},mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  rail-data:
+    name: ${RAIL_DATA_VOLUME:-rail-data}
+    driver: local

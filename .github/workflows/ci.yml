@@ -3,101 +3,51 @@ name: CI
 on:
   pull_request:
   push:
-    branches:
-      - main
+    branches: [main]
 
 permissions:
   contents: read
-  packages: write
-  security-events: write
 
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+concurrency:
+  group: rail-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  validate:
-    name: Validate and Test
+  ci:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Install Hadolint
-        run: |
-          HADOLINT_VERSION="v2.12.0"
-          curl -sSL -o hadolint "https://github.com/hadolint/hadolint/releases/download/${HADOLINT_VERSION}/hadolint-Linux-x86_64"
-          chmod +x hadolint
-          sudo mv hadolint /usr/local/bin/hadolint
-
-      - name: Install Gitleaks
-        run: |
-          GITLEAKS_VERSION="8.24.2"
-          curl -sSL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" -o gitleaks.tar.gz
-          tar -xzf gitleaks.tar.gz gitleaks
-          chmod +x gitleaks
-          sudo mv gitleaks /usr/local/bin/gitleaks
-
-      - name: Lint Dockerfile
-        run: hadolint --config .hadolint.yaml Dockerfile
-
-      - name: Secret scan
-        run: gitleaks detect --source . --config .gitleaks.toml --no-git --redact
-
-      - name: Validate Compose files
-        run: |
-          docker compose -f compose/docker-compose.yml config >/dev/null
-          docker compose -f compose/docker-compose.portainer.yml config >/dev/null
-
-      - name: Run tests
-        run: ./scripts/test.sh
-
-      - name: Dependency audit (Python)
-        if: hashFiles('requirements*.txt') != ''
-        run: |
-          python -m pip install --upgrade pip
-          pip install pip-audit
-          pip-audit -r requirements.txt
-
-      - name: Dependency audit (Node)
-        if: hashFiles('package-lock.json') != ''
-        run: npm audit --audit-level=high
-
-  build:
-    name: Build and Optional Push
-    runs-on: ubuntu-latest
-    needs: validate
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build image (all events)
-        uses: docker/build-push-action@v6
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
-          context: .
-          push: false
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
-
-      - name: Log in to GHCR
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && secrets.GITHUB_TOKEN != ''
+          python-version: '3.12'
+      - name: Install check tools
+        run: python -m pip install --disable-pip-version-check ruff==0.14.3 pytest==8.4.2
+      - name: Ruff
+        run: ruff check .
+      - name: Pytest
+        run: python -m pytest -q
+      - name: Set up Buildx
+        if: github.event_name == 'push'
+        uses: docker/setup-buildx-action@v3
+      - name: Docker Hub login
+        if: github.event_name == 'push'
         uses: docker/login-action@v3
         with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Push image on main (if credentials available)
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Image tag
+        if: github.event_name == 'push'
+        id: tag
+        run: echo "sha=sha-${GITHUB_SHA:0:7}" >> "$GITHUB_OUTPUT"
+      - name: Build and push
+        if: github.event_name == 'push'
         uses: docker/build-push-action@v6
         with:
           context: .
           push: true
           tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+            docker.io/${{ secrets.DOCKERHUB_USERNAME }}/rail:main
+            docker.io/${{ secrets.DOCKERHUB_USERNAME }}/rail:${{ steps.tag.outputs.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

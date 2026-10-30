@@ -11,3 +11,7 @@ __pycache__/
 node_modules/
 docs/
 compose/
+
+work/
+.pytest_cache/
+.ruff_cache/
