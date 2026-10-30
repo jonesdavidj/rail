@@ -1,7 +1,8 @@
-title = "Template gitleaks config"
+title = "Rail gitleaks config"
 
 [allowlist]
 description = "Global allowlist"
 paths = [
-  '''docs/''',
+  '''^work/''',
+  '''^\.venv/''',
 ]
