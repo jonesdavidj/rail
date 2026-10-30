@@ -1,6 +1,6 @@
 # ADR 003: Provisional feed normalisation and prototype paging
 
-Status: accepted for Demo; live contract verification pending.
+Status: original paging decision superseded by the correction below; live contract verification pending.
 
 Port the prototype's expected/planned timing, reasons, destination truncation,
 midnight rollover, seven-row default and time-offset Earlier/Later behaviour.
@@ -27,3 +27,15 @@ HH:MM dates are inferred within the bounded window relative to an aware London
 clock. During the autumn repeated hour, date-less feed fields cannot unambiguously
 identify which occurrence is meant. Do not claim this heuristic solves that feed
 limitation; validate available metadata before enabling live service.
+
+## Paging correction — 2026-10-30
+
+The no-skips/repeats acceptance check reproduced failures with same-minute trains
+and advancing clocks. Replace the prototype's minute-plus-one cursor with a
+stateless, validated absolute time/service-ID boundary and an anchored two-hour
+horizon. Re-fetch its minute inclusively, discard rows at/before the boundary,
+and recompute the upstream offset on every request. This is still a live feed,
+not persisted departure snapshots. Full ten-row responses permit another fetch;
+only known excess rows or an unsaturated feed establish an end. Cursors expire
+after 15 minutes and require the same route pair. No runtime persistence changes.
+See [observed defects and remaining live checks](../live-validation.md).

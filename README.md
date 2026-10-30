@@ -118,7 +118,7 @@ strings masquerading as numeric route settings are rejected.
 | DELETE /api/routes?id=out | Remove one saved route; returns complete saved list |
 | PUT /api/routes/order | Save `{ "ids": ["back", "out"] }` as an atomic permutation; stale/missing/duplicate IDs return 409 |
 | GET /api/stations?q=waterloo | Case-insensitive CRS/name search, code/name prefixes and word prefixes; at most 10 results |
-| GET /api/board?route=out&offset=0 | Normalised board and freshness/error metadata |
+| GET /api/board?route=out&offset=0 | Normalised board and freshness/error metadata; pass returned `next_cursor` as `cursor` for Later |
 
 An example POST body is a route object as above, with `add_return_journey: true`.
 A reverse route gets `<first 48 ID characters>-return`, a station-name label,
@@ -131,13 +131,17 @@ unknown route 404, invalid parameters/payloads 422 and persistence failure 503.
 Failed saves retain previous in-memory configuration. Concurrent writes serialise;
 updates to the same route are last-write-wins.
 
-Route is required for a board. Offset is an integer -60..119 (default 0), unknown
-or repeated query parameters are rejected. A 120-minute window is paged by the
-prototype cursor (last displayed departure minute + 1, capped at 119). Earlier
-initially requests -45; the board remembers previous offsets. Walking time
-filters current/future scheduled departures, not the historical Earlier window.
-These are moving windows, not snapshots; same-minute boundary trains can be
-skipped. Runtime RDM limits remain to be confirmed as documented in the contract note.
+Route is required for a board. Offset is an integer -60..119 (default 0); unknown or repeated query parameters
+are rejected. Later passes the returned `next_cursor` as `cursor` (max 4096
+characters). Its absolute departure/service boundary includes remaining same-minute
+services and survives clock changes; the server derives the upstream offset.
+The horizon stays two hours from the first page. Cursors expire after 15 minutes;
+return to next departures to reset. Earlier initially requests -45 and the board
+remembers previous pages. Walking time applies to the first current/future page,
+not the historical Earlier window. The feed remains live, not an immutable
+snapshot; ten-row saturation within one minute and date-less autumn repeated-hour
+ambiguity remain limitations. See [validation evidence and capture commands](docs/live-validation.md).
+Runtime RDM limits remain to be confirmed as documented in the contract note.
 
 Upstream failures have safe error codes: `authentication` (401/403 upstream),
 `rate_limit` (429), `routing` (400/404/500), `timeout`, `bad_json`, `response_size`,

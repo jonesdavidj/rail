@@ -62,6 +62,7 @@ class BoardPage(NormalisedBoard):
     demo: bool
     offset: int
     next_offset: int | None = None
+    next_cursor: str | None = None
     earlier_offset: int | None = None
     has_next: bool = False
     stale: bool = False

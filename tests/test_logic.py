@@ -1,7 +1,7 @@
 """Focused tests for silent data/config/paging mistakes; no exhaustive matrices."""
 
 import copy
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -9,7 +9,7 @@ from pydantic import ValidationError
 
 from app.config import Route, RouteConfig, RouteWrite, defaults, load_config
 from app.normalise import Raw, normalise_board
-from app.paging import page_board
+from app.paging import cursor_offset, page_board, read_cursor
 from app.providers import DemoProvider
 from app.routes import RouteStore
 
@@ -80,9 +80,80 @@ def test_paging_and_walking_time(now: datetime) -> None:
     board = normalise_board(provider.board(route, 0, now).raw, "WAT", now)
     page = page_board(board, route, 0, provider)
     assert len(page.services) == 3 and page.services[0].in_min >= 15
-    assert page.has_next and page.next_offset == page.services[-1].in_min + 1
+    assert page.has_next and page.next_offset == page.services[-1].in_min
     assert page.earlier_offset == -45
     assert not page_board(board, route, 119, provider).has_next
+
+
+def test_paging_preserves_same_minute_boundary(now: datetime) -> None:
+    provider, route = DemoProvider(), defaults().routes[0]
+    raw = {
+        "trainServices": [{"serviceID": str(i), "std": f"18:{5 + i // 2:02d}"} for i in range(10)]
+    }
+    board = normalise_board(raw, "WAT", now)
+    first = page_board(board, route, 0, provider, now)
+    cursor = read_cursor(first.next_cursor, route, now)
+    second = page_board(board, route, cursor_offset(cursor, now), provider, now, cursor)
+    assert [service.id for service in first.services + second.services] == list(map(str, range(10)))
+
+
+def test_cursor_survives_minute_change_across_midnight(now: datetime) -> None:
+    provider, route = DemoProvider(), defaults().routes[0]
+    now = now.replace(hour=23, minute=50, second=50)
+    start = now.replace(minute=54, second=0)
+    raw = {
+        "trainServices": [
+            {"serviceID": str(i), "std": (start + timedelta(minutes=i)).strftime("%H:%M")}
+            for i in range(10)
+        ]
+    }
+    first = page_board(normalise_board(raw, "WAT", now), route, 0, provider, now)
+    later = now + timedelta(minutes=2)
+    cursor = read_cursor(first.next_cursor, route, later)
+    offset = cursor_offset(cursor, later)
+    second = page_board(
+        normalise_board(raw, "WAT", later),
+        route,
+        offset,
+        provider,
+        later,
+        cursor,
+    )
+    assert first.services[-1].planned == "00:00"
+    assert second.services[0].planned == "00:01"
+    assert {s.id for s in first.services}.isdisjoint(s.id for s in second.services)
+
+
+def test_full_upstream_page_does_not_end_paging(now: datetime) -> None:
+    provider = DemoProvider()
+    route = defaults().routes[0].model_copy(update={"page_size": 10})
+    raw = {"trainServices": [{"serviceID": str(i), "std": f"18:{i:02d}"} for i in range(10)]}
+    page = page_board(normalise_board(raw, "WAT", now), route, 0, provider, now)
+    assert len(page.services) == 10 and page.has_next
+
+
+def test_paging_stays_in_anchored_two_hour_window(now: datetime) -> None:
+    provider, route = DemoProvider(), defaults().routes[0]
+    now = now.replace(hour=23, minute=40)
+    first = page_board(
+        normalise_board(provider.board(route, 0, now).raw, "WAT", now), route, 0, provider, now
+    )
+    cursor = read_cursor(first.next_cursor, route, now)
+    offset = cursor_offset(cursor, now)
+    last = page_board(
+        normalise_board(provider.board(route, offset, now).raw, "WAT", now),
+        route,
+        offset,
+        provider,
+        now,
+        cursor,
+    )
+    assert last.services[-1].planned == "01:35" and last.services[-1].in_min == 115
+    assert not last.has_next
+    earlier = page_board(
+        normalise_board(provider.board(route, -45, now).raw, "WAT", now), route, -45, provider, now
+    )
+    assert earlier.services[0].in_min == -45
 
 
 def test_invalid_config_falls_back_without_overwrite(tmp_path: Path) -> None:

@@ -19,6 +19,7 @@ from app.normalise import Raw, normalise_board
 
 MAX_RESPONSE_BYTES = 2_000_000
 STALE_SECONDS = 900
+BOARD_ROWS = 10
 
 
 class ProviderError(Exception):
@@ -183,7 +184,7 @@ class RailDataProvider:
                 "filterType": "to",
                 "timeOffset": offset,
                 "timeWindow": 120,
-                "numRows": 10,
+                "numRows": BOARD_ROWS,
             }
         )
         request = urllib.request.Request(

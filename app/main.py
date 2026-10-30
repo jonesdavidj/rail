@@ -19,7 +19,7 @@ from app.config import Route, RouteID, RouteOrder, RouteWrite, Settings
 from app.logging import configure_logging
 from app.models import BoardPage
 from app.normalise import LONDON, normalise_board
-from app.paging import MAX_OFFSET, MIN_OFFSET, page_board
+from app.paging import MAX_OFFSET, MIN_OFFSET, cursor_offset, page_board, read_cursor
 from app.providers import DemoProvider, DepartureProvider
 from app.rail_data import ProviderError, RailDataProvider
 from app.routes import RouteConflict, RouteStore
@@ -61,7 +61,7 @@ def create_app(
         started = time.monotonic()
         path = request.url.path
         allowed = (
-            {"route", "offset"}
+            {"route", "offset", "cursor"}
             if path == "/api/board"
             else (
                 {"q"}
@@ -176,15 +176,27 @@ def create_app(
     def board(
         route: Annotated[RouteID, Query()],
         offset: Annotated[int, Query(ge=MIN_OFFSET, le=MAX_OFFSET)] = 0,
+        cursor: Annotated[str | None, Query(min_length=1, max_length=4096)] = None,
     ) -> BoardPage | JSONResponse:
         config = next((r for r in store.snapshot().config.routes if r.id == route), None)
         if config is None:
             raise HTTPException(404, "Unknown route")
         moment = now()
         try:
+            boundary = read_cursor(cursor, config, moment) if cursor else None
+            if boundary:
+                offset = cursor_offset(boundary, moment)
+        except ValueError as error:
+            raise HTTPException(422, str(error)) from None
+        try:
             result = selected.board(config, offset, moment)
             page = page_board(
-                normalise_board(result.raw, config.destination, moment), config, offset, selected
+                normalise_board(result.raw, config.destination, moment),
+                config,
+                offset,
+                selected,
+                moment,
+                boundary,
             )
             return page.model_copy(
                 update={

@@ -23,7 +23,7 @@ const station = {from: null, to: null};
 const searches = {};
 const stateFor = (id) => {
   if (!boards.has(id)) boards.set(id, {
-    stack: [0], data: null, open: new Set(), domIds: new Map(), loading: false,
+    stack: [{offset: 0}], data: null, open: new Set(), domIds: new Map(), loading: false,
     error: null, sequence: 0, controller: null, received: 0, noticesOpen: false,
   });
   return boards.get(id);
@@ -118,7 +118,9 @@ async function loadBoard(id, announce = false) {
   if (id === current) renderBoard();
   const timeout = setTimeout(() => controller.abort("timeout"), 20000);
   try {
-    const query = new URLSearchParams({route: id, offset: state.stack.at(-1)});
+    const position = state.stack.at(-1);
+    const query = new URLSearchParams({route: id, offset: position.offset});
+    if (position.cursor) query.set("cursor", position.cursor);
     const data = await api("/api/board?" + query, {signal: controller.signal});
     if (sequence !== state.sequence) return;
     state.data = data;
@@ -257,10 +259,10 @@ function renderBoard(justOpened = null) {
   else if (!data.services.length) {
     const walking = route.min_departure_minutes;
     showState(data.services_available === false ? "Departure information is unavailable" : "No direct trains in this window",
-      walking > 0 && state.stack.at(-1) >= 0
+      walking > 0 && state.stack.length === 1 && state.stack.at(-1).offset >= 0
         ? `Your ${walking}-minute walking allowance may hide earlier trains. Reduce it in settings or try again later.`
         : "Try the next departures, check your selected stations in settings, or try again shortly.",
-      [[state.stack.at(-1) !== 0 ? "Back to next departures" : "Try again", () => { state.stack = [0]; state.data = null; loadBoard(current, true); }], ["Route settings", openSettings]]);
+      [[state.stack.at(-1).offset !== 0 || state.stack.length > 1 ? "Back to next departures" : "Try again", () => { state.stack = [{offset: 0}]; state.data = null; loadBoard(current, true); }], ["Route settings", openSettings]]);
   } else data.services.forEach((service) => list.append(serviceRow(service, state, justOpened)));
   const messages = (data?.messages || []).filter((message) => !(data.demo && message.startsWith("Demo data")));
   $("notices").hidden = !messages.length;
@@ -271,9 +273,9 @@ function renderBoard(justOpened = null) {
     $("notice-content").replaceChildren(...messages.map((message) => node("p", "", message)));
     $("notice-content").dataset.signature = signature;
   }
-  $("earlier").disabled = !data || state.loading || (state.stack.length === 1 && state.stack[0] < 0);
+  $("earlier").disabled = !data || state.loading || (state.stack.length === 1 && state.stack[0].offset < 0);
   $("later").disabled = !data?.has_next || state.loading;
-  $("return-now").hidden = !state || state.stack.at(-1) === 0;
+  $("return-now").hidden = !state || (state.stack.length === 1 && state.stack.at(-1).offset === 0);
   $("updated").textContent = data?.generated_at ? `Updated ${london(new Date(data.generated_at), true)}${data.stale || state.error ? " · last available board" : ""}` : "Waiting for an update";
   $("refresh-note").textContent = document.hidden ? "Updates paused while hidden" : `Refreshes every ${refreshMs / 1000} seconds`;
   if (focused?.startsWith("service-")) ($(focused) || $("departures")).focus({preventScroll: true});
@@ -281,9 +283,9 @@ function renderBoard(justOpened = null) {
 
 function page(direction) {
   const state = stateFor(current);
-  if (direction === "later" && state.data?.next_offset != null) state.stack.push(state.data.next_offset);
-  else if (direction === "earlier") { if (state.stack.length > 1) state.stack.pop(); else state.stack = [-45]; }
-  else state.stack = [0];
+  if (direction === "later" && state.data?.next_cursor) state.stack.push({offset: state.data.next_offset, cursor: state.data.next_cursor});
+  else if (direction === "earlier") { if (state.stack.length > 1) state.stack.pop(); else state.stack = [{offset: -45}]; }
+  else state.stack = [{offset: 0}];
   state.data = null; state.error = null;
   loadBoard(current, true);
 }

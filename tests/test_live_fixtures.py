@@ -89,3 +89,10 @@ def test_missing_platform_is_tbc() -> None:
     board = normalise_board(parse_board(body, "SUR", now), "SUR", now)
     # platformAvailable is true on the board, but this service has no platform field.
     assert board.services[0].platform == "TBC"
+
+
+def test_current_minute_departure_is_not_treated_as_past() -> None:
+    raw = json.loads((FIXTURES / "sur-wat.json").read_bytes())
+    now = datetime.fromisoformat(raw["generatedAt"])
+    service = normalise_board(raw, "WAT", now).services[0]
+    assert service.planned == "19:27" and service.in_min == 0

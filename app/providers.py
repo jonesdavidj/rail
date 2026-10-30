@@ -31,7 +31,9 @@ class DemoProvider:
         services: list[Raw] = []
         for index in range(-6, 27):
             departure = anchor + timedelta(minutes=index * 10 + 5)
-            delta = (departure.timestamp() - now.timestamp()) / 60
+            delta = (
+                departure.timestamp() - local.replace(second=0, microsecond=0).timestamp()
+            ) / 60
             if not offset <= delta <= offset + 120:
                 continue
             scenario = index % 8
