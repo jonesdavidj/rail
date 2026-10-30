@@ -104,8 +104,15 @@ def calling_points(raw: Raw, destination: str) -> list[Raw]:
     return []
 
 
-def location_name(value: object) -> str:
-    return ", ".join(filter(None, (text(field(item, "locationName")) for item in objects(value))))
+def location_name(value: object, with_via: bool = False) -> str:
+    names = []
+    for item in objects(value):
+        name = text(field(item, "locationName"))
+        if with_via:
+            name = " ".join(filter(None, (name, text(field(item, "via")))))
+        if name:
+            names.append(name)
+    return ", ".join(names)
 
 
 def normalise_service(raw: Raw, destination: str, now: datetime) -> Service | None:
@@ -184,7 +191,7 @@ def normalise_service(raw: Raw, destination: str, now: datetime) -> Service | No
         operator=text(field(raw, "operatorCode")) or text(field(raw, "operator")),
         operator_name=text(field(raw, "operator")),
         origin=location_name(field(raw, "origin")),
-        destination=location_name(field(raw, "destination")),
+        destination=location_name(field(raw, "destination"), with_via=True),
         length=positive_int(field(raw, "length")),
         reason=reason,
         arrival=arrival,
