@@ -1,0 +1,14 @@
+services:
+  trains:
+    build: .
+    container_name: trains
+    restart: unless-stopped
+    environment:
+      RAIL_DATA_API_KEY: ${RAIL_DATA_API_KEY:-}      # leave empty for demo data
+      RAIL_DATA_BASE_URL: ${RAIL_DATA_BASE_URL:-https://api1.raildata.org.uk/1010-live-departure-board-dep1_2/LDBWS/api/20220120}
+      TZ: Europe/London
+    ports:
+      - "8099:8099"          # drop this and use your Caddy network instead if you prefer
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]

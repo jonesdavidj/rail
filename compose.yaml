@@ -4,6 +4,8 @@ services:
     container_name: ${RAIL_CONTAINER_NAME:-rail}
     restart: ${RAIL_RESTART_POLICY:-unless-stopped}
     environment:
+      RAIL_PROVIDER: ${RAIL_PROVIDER:-demo}
+      RAIL_DATA_PATH: ${RAIL_DATA_PATH:-/data}
       TZ: ${TZ:-Europe/London}
       RAIL_DATA_API_KEY: ${RAIL_DATA_API_KEY:-}
     ports:

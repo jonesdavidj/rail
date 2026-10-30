@@ -11,7 +11,13 @@ node_modules/
 coverage/
 dist/
 build/
-
 work/
 .pytest_cache/
 .ruff_cache/
+.coverage
+htmlcov/
+data/
+!app/data/
+!app/data/*
+
+work/

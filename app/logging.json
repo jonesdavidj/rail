@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "disable_existing_loggers": false,
+  "formatters": {"json": {"()": "app.logging.JsonFormatter"}},
+  "handlers": {"console": {"class": "logging.StreamHandler", "stream": "ext://sys.stdout", "formatter": "json"}},
+  "loggers": {
+    "rail": {"handlers": ["console"], "level": "INFO", "propagate": false},
+    "uvicorn": {"handlers": ["console"], "level": "INFO", "propagate": false},
+    "uvicorn.error": {"level": "INFO", "propagate": true},
+    "uvicorn.access": {"handlers": [], "propagate": false}
+  }
+}

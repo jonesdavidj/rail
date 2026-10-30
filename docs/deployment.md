@@ -1,26 +1,8 @@
 # Deployment
 
-## Registry default: GHCR
-
-Default image naming in this template uses GHCR:
-
-- `ghcr.io/<owner>/<repo>:latest`
-- `ghcr.io/<owner>/<repo>:<git-sha>`
-
-### Switch to Docker Hub
-
-1. Change image references in:
-   - `compose/docker-compose.yml`
-   - `compose/docker-compose.portainer.yml`
-   - `.github/workflows/ci.yml` (`REGISTRY` and login step)
-2. Add Docker Hub credentials as GitHub Actions secrets.
-
-## Portainer stack deployment from GitHub
-
-Use `compose/docker-compose.portainer.yml` in Portainer stack settings.
-
-Recommended env vars in Portainer:
-
-- `IMAGE_NAME`
-- `APP_ENV`
-- `APP_PORT`
+See the [README](../README.md#container-and-deployment) for the single root
+compose.yaml, Portainer variables, host port 8097 and named local rail-data volume.
+The scaffold's GHCR publishing and duplicate Compose files have been removed.
+Phase 1 CI builds and tests only. Do not deploy externally before Cloudflare
+Access protects the hostname. TLS and hostname routing belong to the existing
+shared Caddy/proxy repository. No production deployment is performed in phase 1.
