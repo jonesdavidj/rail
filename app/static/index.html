@@ -26,13 +26,13 @@ async function load() {
     if (!response.ok) throw new Error(data.error || data.detail || "Could not load board");
     output.textContent = (data.stale ? "STALE DATA — " + data.error + "\n\n" : "") + JSON.stringify(data, null, 2);
     next = data.next_offset;
-    earlier.disabled = offsets.length === 1 && data.earlier_offset === null;
+    earlier.disabled = offsets.length === 1 && data.earlier_offset == null;
     later.disabled = !data.has_next;
   } catch (error) { output.textContent = String(error); }
 }
 route.onchange = () => { offsets = [0]; load(); };
 earlier.onclick = () => { if (offsets.length > 1) offsets.pop(); else offsets = [-45]; load(); };
-later.onclick = () => { if (next !== null) { offsets.push(next); load(); } };
+later.onclick = () => { if (next != null) { offsets.push(next); load(); } };
 async function start() {
   try {
     const health = await (await fetch("/api/health")).json();
