@@ -15,7 +15,7 @@ and cooldowns reset on restart. Run one Uvicorn worker and use the documented
 [quota budget](api-budget.md). No background polling or persistent departure data.
 
 Remote access requires Cloudflare Access; optional ADMIN_TOKEN restricts writes
-further. Do not expose 8097 publicly. Use a previous immutable image for rollback.
+further. Do not expose host port 8098 publicly (container/Caddy port remains 8097). Use a previous immutable image for rollback.
 Do not put keys, raw CLI diagnostic output or runtime data in Git.
 
 In the managed environment Docker builds may need the session CA:

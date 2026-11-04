@@ -95,3 +95,13 @@ reports a warning in `/api/health`; check restored ownership before saving edits
 ## Cross-stack network contract
 
 See the [network ownership review and coordinated deployment/rollback runbook](https://github.com/jonesdavidj/home-infrastructure/blob/main/network/compose-network-review.md).
+
+
+## Host port on redeployment
+
+Compose now defaults to host `8098:8097`, avoiding Music Assistant host stream
+port 8097. The container listener and Caddy upstream `rail-origin:8097` stay the
+same. In Portainer, remove a stale `RAIL_HOST_PORT=8097` override or set it to
+8098 before Pull and redeploy; an existing explicit value overrides the new
+default. Check LAN/HA clients use `minisforum.lan:8098`. Preserve the current
+project name and `rail-data` volume, then verify `/api/health` via LAN and Caddy.

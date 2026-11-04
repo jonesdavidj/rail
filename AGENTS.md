@@ -15,8 +15,8 @@ back). Each saved route is a tab. Python, minimal pinned dependencies. Demo prov
   as my other repos (check jonesdavidj/power-map).
 - Ingress is not this repo's job. Cloudflare Access, then cloudflared, then shared Caddy
   (jonesdavidj/proxy) proxies rail.balaclavaroad.com to rail-origin:8097 on external rail_ingress,
-  owned by the Docker repo edge stack. The container also publishes configurable host port 8097 for compatibility
-  and does not join edge. Check for a clash with Music Assistant host stream port 8097 before deployment. The app must not depend on the Host header.
+  owned by the Docker repo edge stack. The container also publishes configurable host port 8098 for LAN compatibility
+  and does not join edge. Keep container/Caddy port 8097; host 8098 avoids Music Assistant stream port 8097. The app must not depend on the Host header.
 - The app has no login. Optional ADMIN_TOKEN protects write endpoints.
 - State: only the saved route list, as JSON in a local named volume `rail-data` at /data. No NAS volume. The app
   must start on built-in defaults if /data is empty or unreadable, and report that on /api/health.

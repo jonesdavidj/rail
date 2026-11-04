@@ -16,7 +16,7 @@ services:
       RAIL_CACHE_TTL: ${RAIL_CACHE_TTL:-30}
       RAIL_REFRESH_SECONDS: ${RAIL_REFRESH_SECONDS:-30}
     ports:
-      - "${RAIL_HOST_PORT:-8097}:8097"
+      - "${RAIL_HOST_PORT:-8098}:8097"
     networks:
       default:
       rail_ingress:
