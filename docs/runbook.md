@@ -90,3 +90,8 @@ only custom routes, including labels/order/walking settings; the two built-in
 routes return. API credentials remain Portainer variables and departures were
 only cached in memory. Missing/unreadable config also falls back to defaults and
 reports a warning in `/api/health`; check restored ownership before saving edits.
+
+
+## Cross-stack network contract
+
+See the [network ownership review and coordinated deployment/rollback runbook](https://github.com/jonesdavidj/home-infrastructure/blob/main/network/compose-network-review.md).
