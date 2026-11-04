@@ -36,3 +36,8 @@ this is documentation to copy there, not a stack owned by that repo:
 ```markdown
 | App in its own repo | Rail — deployed by Portainer from [jonesdavidj/rail](https://github.com/jonesdavidj/rail), using its `compose.yaml`; image `jonesdavidj/rail`, host port 8098, local volume `rail-data` |
 ```
+
+
+## Explicit bridge subnet repair
+
+Shared ingress uses the Docker repo networking/bootstrap_networks.py and allocation.json; private backends have explicit /24 IPAM. Preserve existing stack projects, volume identities and published ports during network recreation. Follow the [ordered migration and rollback](https://github.com/jonesdavidj/home-infrastructure/blob/main/network/docker-subnet-migration.md) before deploying over old subnets. Runtime checks remain pending deployment.

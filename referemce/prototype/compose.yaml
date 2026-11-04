@@ -12,3 +12,12 @@ services:
     read_only: true
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
+
+networks:
+  default:
+    name: rail-prototype_backend
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.203.27.0/24
+          gateway: 10.203.27.1
