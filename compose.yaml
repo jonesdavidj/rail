@@ -33,6 +33,13 @@ services:
       - no-new-privileges:true
 
 networks:
+  default:
+    name: ${RAIL_BACKEND_NETWORK:-rail-stack_default}
+    driver: bridge
+    ipam:
+      config:
+        - subnet: ${RAIL_BACKEND_SUBNET:-10.203.20.0/24}
+          gateway: ${RAIL_BACKEND_GATEWAY:-10.203.20.1}
   rail_ingress:
     external: true
     name: rail_ingress
