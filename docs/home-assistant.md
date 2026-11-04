@@ -56,7 +56,7 @@ sensor:
   - platform: rest
     name: Rail Out
     unique_id: rail_out
-    resource: "http://minisforum.lan:8097/api/summary?route=out&n=7"
+    resource: "http://minisforum.lan:8098/api/summary?route=out&n=7"
     scan_interval: 60
     timeout: 40
     value_template: >-
