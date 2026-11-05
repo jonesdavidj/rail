@@ -4,8 +4,8 @@ python -m ruff check app tests scripts/bundle_stations.py
 python -m ruff format --check app tests scripts/bundle_stations.py
 hadolint --config .hadolint.yaml Dockerfile
 gitleaks detect --source . --config .gitleaks.toml --no-git --redact
-# Dummy non-secret values; empty RAIL_HOST_PORT exercises the Compose default.
-DOCKERHUB_USERNAME=jonesdavidj RAIL_IMAGE_TAG=test RAIL_PLATFORM=linux/amd64 RAIL_HOST_PORT= \
+# Dummy non-secret values.
+DOCKERHUB_USERNAME=jonesdavidj RAIL_IMAGE_TAG=test RAIL_PLATFORM=linux/amd64 \
 RAIL_DATA_VOLUME=rail-data RAIL_DATA_PATH=/data RAIL_PROVIDER=demo TZ=Europe/London \
 RAIL_DATA_BASE_URL= RAIL_DATA_ALLOWED_HOSTS=api1.raildata.org.uk RAIL_DATA_API_KEY= \
 RAIL_DATA_API_KEY_FILE= ADMIN_TOKEN= RAIL_CACHE_TTL=30 RAIL_REFRESH_SECONDS=30 \

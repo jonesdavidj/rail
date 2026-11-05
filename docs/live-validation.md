@@ -31,15 +31,15 @@ and may require upstream capabilities beyond this endpoint. Runtime offset limit
 
 ## Capture on the home server / LAN (Bash)
 
-No Access or ingress changes needed. Use the existing LAN port; do not publish it.
+No Access or ingress changes needed. Use https://rail-lan.balaclavaroad.com (LAN only); do not publish a host port.
 These commands save board JSON only, never the key. First inspect route IDs; replace
 `out`/`back` below if they changed. Keep capture files outside Git unless a novel
 case is selected and sanitised later.
 
 ```bash
 mkdir -p rail-validation
-curl --fail-with-body --max-time 20 http://minisforum.lan:8098/api/health -o rail-validation/health.json
-curl --fail-with-body --max-time 20 http://minisforum.lan:8098/api/routes -o rail-validation/routes.json
+curl --fail-with-body --max-time 20 https://rail-lan.balaclavaroad.com/api/health -o rail-validation/health.json
+curl --fail-with-body --max-time 20 https://rail-lan.balaclavaroad.com/api/routes -o rail-validation/routes.json
 ```
 
 Run the following mid-minute, with the subscribed Specification base URL. Enter
@@ -52,14 +52,14 @@ read -r -s -p 'RDM consumer key: ' RAIL_CHECK_KEY; printf '\n'
 RAIL_CHECK_BASE='https://api1.raildata.org.uk/1010-live-departure-board-dep1_2/LDBWS/api/20220120'
 for pair in sur-wat wat-sur; do
   if [ "$pair" = sur-wat ]; then from=SUR; to=WAT; route=out; else from=WAT; to=SUR; route=back; fi
-  curl --fail-with-body --max-time 20 --get http://minisforum.lan:8098/api/board \
+  curl --fail-with-body --max-time 20 --get https://rail-lan.balaclavaroad.com/api/board \
     --data-urlencode "route=$route" --data-urlencode offset=0 -o "rail-validation/$pair-app-before.json"
   printf 'x-apikey: %s\n' "$RAIL_CHECK_KEY" | curl --fail-with-body --silent --show-error \
     --max-time 20 --proto '=https' --header @- --header 'Accept: application/json' --get \
     "$RAIL_CHECK_BASE/GetDepBoardWithDetails/$from" --data-urlencode "filterCrs=$to" \
     --data-urlencode filterType=to --data-urlencode timeOffset=0 --data-urlencode timeWindow=120 \
     --data-urlencode numRows=10 -o "rail-validation/$pair-raw.json"
-  curl --fail-with-body --max-time 20 --get http://minisforum.lan:8098/api/board \
+  curl --fail-with-body --max-time 20 --get https://rail-lan.balaclavaroad.com/api/board \
     --data-urlencode "route=$route" --data-urlencode offset=0 -o "rail-validation/$pair-app-after.json"
 done
 unset RAIL_CHECK_KEY
@@ -78,9 +78,9 @@ For current deployment paging, record each response's service IDs and follow its
 `next_offset`; after this fix is deployed, also pass its **next_cursor** unchanged:
 
 ```bash
-curl --fail-with-body --max-time 20 --get http://minisforum.lan:8098/api/board \
+curl --fail-with-body --max-time 20 --get https://rail-lan.balaclavaroad.com/api/board \
   --data-urlencode route=out --data-urlencode offset=-45 -o rail-validation/out-earlier.json
-curl --fail-with-body --max-time 20 --get http://minisforum.lan:8098/api/board \
+curl --fail-with-body --max-time 20 --get https://rail-lan.balaclavaroad.com/api/board \
   --data-urlencode route=out --data-urlencode 'cursor=PASTE_NEXT_CURSOR' -o rail-validation/out-later.json
 ```
 

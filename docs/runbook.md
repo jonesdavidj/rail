@@ -97,11 +97,14 @@ reports a warning in `/api/health`; check restored ownership before saving edits
 See the [network ownership review and coordinated deployment/rollback runbook](https://github.com/jonesdavidj/home-infrastructure/blob/main/network/compose-network-review.md).
 
 
-## Host port on redeployment
+## LAN access and no host port
 
-Compose now defaults to host `8098:8097`, avoiding Music Assistant host stream
-port 8097. The container listener and Caddy upstream `rail-origin:8097` stay the
-same. In Portainer, remove a stale `RAIL_HOST_PORT=8097` override or set it to
-8098 before Pull and redeploy; an existing explicit value overrides the new
-default. Check LAN/HA clients use `minisforum.lan:8098`. Preserve the current
-project name and `rail-data` volume, then verify `/api/health` via LAN and Caddy.
+Compose publishes no host port (host 8097 is Music Assistant's stream port, and
+the former host 8098 publication was removed with the shared-network migration).
+The container listener and Caddy upstream `rail-origin:8097` are unchanged. LAN and
+Home Assistant clients use https://rail-lan.balaclavaroad.com (Cloudflare A record,
+unproxied, to the Minisforum; shared Caddy block in jonesdavidj/proxy; no Access
+policy). HA's `rest_command.rail_summary` uses that name because HA runs on the host
+network and cannot resolve the Docker alias `rail-origin`. Preserve the current
+project name and `rail-data` volume, then verify `/api/health` through both
+`rail.` and `rail-lan.`. A stale `RAIL_HOST_PORT` Portainer value has no effect.
