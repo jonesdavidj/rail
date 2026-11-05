@@ -169,9 +169,11 @@ Data key is sent to the browser.
 volume at /data, restart unless-stopped, TZ=Europe/London and linux/amd64. No NAS,
 edge-network attachment or TLS listener. Ingress stays Access → Tunnel → shared
 Caddy → rail-origin:8097 on external rail_ingress, owned by the Docker repo edge
-stack. Deploy the network owner before Rail. LAN clients use minisforum.lan:8098;
-keep that host port off the public internet. RAIL_HOST_PORT overrides the published
-port; remove a stale Portainer value of 8097 or set it to 8098 before redeploying.
+bootstrap. Deploy the shared network before Rail. The host publication defaults to
+127.0.0.1:8098 for host-network Home Assistant's existing REST command. LAN users
+use the Caddy hostname; the backend is not published on LAN interfaces by default.
+RAIL_BIND_ADDRESS and RAIL_HOST_PORT override the bind and port; retain loopback
+and remove a stale Portainer port value of 8097 or set it to 8098 before redeploying.
 The image listens on container port 8097, runs as UID/GID 10001, and is read-only
 except /data and the /tmp tmpfs. A fresh volume inherits
 its ownership. Back up only routes.json; keep restored files readable by that UID.
@@ -193,7 +195,7 @@ First deployment:
 4. Set DOCKERHUB_USERNAME and RAIL_IMAGE_TAG in stack variables; `.env.example`
    documents all names/defaults. Use the published SHA tag for a deliberate release.
    The stack defaults to Demo; no Rail Data key is needed to start.
-5. Deploy and verify `/api/health` on host port 8098. Preserve `rail-data` on updates.
+5. Deploy and verify `http://127.0.0.1:8098/api/health` on the host, then refresh the HA Rail sensor and test the public Caddy route. Verify the published bind is loopback, not `0.0.0.0` or `::`. Preserve `rail-data` on updates.
 6. For live validation, set the key and Specification base URL as Portainer variables,
    run `python -m app --check --raw` in the container, and then select
    RAIL_PROVIDER=auto or rail_data when ready. Do not commit or send the key in chat.

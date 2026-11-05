@@ -20,6 +20,9 @@ services:
       rail_ingress:
         aliases:
           - rail-origin
+    # HA runs in the host namespace and calls 127.0.0.1:8098.
+    ports:
+      - "${RAIL_BIND_ADDRESS:-127.0.0.1}:${RAIL_HOST_PORT:-8098}:8097"
     volumes:
       - rail-data:/data
     read_only: ${RAIL_READ_ONLY:-true}
