@@ -65,7 +65,7 @@ def create_app(
             {"route", "offset", "cursor", "fast"}
             if path == "/api/board"
             else (
-                {"route", "n"}
+                {"route", "n", "stops"}
                 if path == "/api/summary"
                 else (
                     {"q"}
