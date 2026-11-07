@@ -21,9 +21,11 @@ no Home Assistant files are changed by this repo.
   `expected`, `status`, `delay_minutes`, `platform`, `carriage_count`, final
   `destination` (including via text), UTC ISO `arrival_planned` / `arrival_expected`
   at the route destination, `journey_minutes`, `stop_count`, and `fast`.
-  No calling points/nested service data. Unknown values are null; on-time delay is
+  Calling points are omitted unless `stops=1` is passed, which adds a `stops` list
+  to each row (`name`, `crs`, UTC ISO `planned` / `expected`, `cancelled`) from after
+  the origin up to the route destination. Unknown values are null; on-time delay is
   0 and on-time expected timestamps equal planned. Cancelled rows are never fast.
-  Typical n=7 responses from both real captures are about 2.7 KB.
+  Typical n=7 responses from both real captures are about 2.7 KB (more with `stops=1`).
 
 Next means the first scheduled, non-cancelled service meeting the route's saved
 walking allowance, matching board order. Its ETA uses the feed's expected clock

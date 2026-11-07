@@ -39,6 +39,14 @@ class NextDeparture(SelectedService):
     carriage_count: int | None
 
 
+class SummaryStop(BaseModel):
+    name: str
+    crs: str
+    planned: datetime | None
+    expected: datetime | None
+    cancelled: bool
+
+
 class SummaryService(SelectedService):
     expected: datetime | None
     delay_minutes: int | None
@@ -50,6 +58,7 @@ class SummaryService(SelectedService):
     journey_minutes: int | None
     stop_count: int | None
     fast: bool
+    stops: list[SummaryStop] | None = None  # Only set (and sent) when ?stops=1.
 
 
 class Summary(BaseModel):
@@ -71,7 +80,35 @@ def clock_after(value: str, reference: datetime) -> datetime:
     return reference + timedelta(minutes=(minutes - reference.hour * 60 - reference.minute) % 1440)
 
 
-def service_summary(service: Service, route: Route, planned: datetime) -> SummaryService:
+def summary_stops(service: Service, planned: datetime) -> list[SummaryStop]:
+    """Calling points up to the route destination, each placed after the previous one."""
+    stops: list[SummaryStop] = []
+    reference = planned
+    for stop in service.stops:
+        stop_planned = stop_expected = None
+        if stop.planned:
+            stop_planned = reference = clock_after(stop.planned, reference)
+            if stop.expected:
+                stop_expected = stop_planned + timedelta(
+                    minutes=minutes_between(stop.planned, stop.expected)
+                )
+            elif stop.state in {"on_time", "actual"}:
+                stop_expected = stop_planned
+        stops.append(
+            SummaryStop(
+                name=stop.name,
+                crs=stop.crs,
+                planned=stop_planned.astimezone(UTC) if stop_planned else None,
+                expected=stop_expected.astimezone(UTC) if stop_expected else None,
+                cancelled=stop.cancelled,
+            )
+        )
+    return stops
+
+
+def service_summary(
+    service: Service, route: Route, planned: datetime, with_stops: bool = False
+) -> SummaryService:
     expected = (
         planned + timedelta(minutes=minutes_between(service.planned, service.expected))
         if service.expected
@@ -108,10 +145,13 @@ def service_summary(service: Service, route: Route, planned: datetime) -> Summar
         journey_minutes=journey_minutes(service),
         stop_count=service.stop_count,
         fast=is_fast(service, route),
+        **({"stops": summary_stops(service, planned)} if with_stops else {}),
     )
 
 
-def summarise(services: list[Service], route: Route, now: datetime, n: int = 7) -> Summary:
+def summarise(
+    services: list[Service], route: Route, now: datetime, n: int = 7, with_stops: bool = False
+) -> Summary:
     """Count the whole scheduled window; choose the next usable board-order train."""
     minute = now.astimezone(LONDON).replace(second=0, microsecond=0)
     window = sorted(
@@ -156,7 +196,7 @@ def summarise(services: list[Service], route: Route, now: datetime, n: int = 7) 
         cancelled_count=sum(service.status in CANCELLED for _, _, service in window),
         delayed_count=sum(service.status in {"late", "delayed"} for _, _, service in window),
         services=[
-            service_summary(service, route, planned)
+            service_summary(service, route, planned, with_stops)
             for planned, _, service in window
             if planned >= minute + timedelta(minutes=route.min_departure_minutes)
         ][:n],
@@ -217,9 +257,11 @@ def summary_router(
     locks: dict[tuple[str, str, str], LockType] = {}
     guard = Lock()
 
-    @router.get("/api/summary", response_model=Summary)
+    @router.get("/api/summary", response_model=Summary, response_model_exclude_unset=True)
     def summary(
-        route: Annotated[RouteID, Query()], n: Annotated[int, Query(ge=1, le=10)] = 7
+        route: Annotated[RouteID, Query()],
+        n: Annotated[int, Query(ge=1, le=10)] = 7,
+        stops: Annotated[bool, Query()] = False,
     ) -> Summary | JSONResponse:
         config = next((item for item in store.snapshot().config.routes if item.id == route), None)
         if config is None:
@@ -241,7 +283,7 @@ def summary_router(
                             cache.pop(next(iter(cache)))
                 else:
                     scanned = entry[1]
-            return summarise(scanned.services, config, started, n).model_copy(
+            return summarise(scanned.services, config, started, n, stops).model_copy(
                 update={
                     "generated_at": scanned.generated_at,
                     "demo": provider.mode == "demo",
