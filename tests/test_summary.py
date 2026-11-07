@@ -46,7 +46,7 @@ def test_summary_service_shape_limit_cancellation_and_fast() -> None:
     now = datetime.fromisoformat(raw["generatedAt"]).replace(minute=20)
     route = defaults().routes[1].model_copy(update={"min_departure_minutes": 2})
     result = summarise(normalise_board(raw, "SUR", now).services, route, now, n=7)
-    rows = result.model_dump(mode="json")["services"]
+    rows = result.model_dump(mode="json", exclude_unset=True)["services"]
     assert len(rows) == 7
     assert set(rows[0]) == {
         "id",
@@ -70,3 +70,18 @@ def test_summary_service_shape_limit_cancellation_and_fast() -> None:
     assert rows[1]["arrival_planned"].endswith("Z") and rows[1]["arrival_expected"].endswith("Z")
     assert rows[3]["fast"] and rows[3]["stop_count"] == 0
     assert len(result.model_dump_json().encode()) < 4096
+
+
+def test_summary_stops_are_opt_in_and_end_at_destination() -> None:
+    raw = json.loads((Path(__file__).parent / "fixtures" / "wat-sur.json").read_bytes())
+    now = datetime.fromisoformat(raw["generatedAt"]).replace(minute=20)
+    route = defaults().routes[1].model_copy(update={"min_departure_minutes": 2})
+    services = normalise_board(raw, "SUR", now).services
+    plain = summarise(services, route, now, n=7).model_dump(mode="json", exclude_unset=True)
+    rows = summarise(services, route, now, n=7, with_stops=True).model_dump(
+        mode="json", exclude_unset=True
+    )["services"]
+    assert all("stops" not in row for row in plain["services"])
+    stops = rows[1]["stops"]
+    assert set(stops[0]) == {"name", "crs", "planned", "expected", "cancelled"}
+    assert stops[-1]["crs"] == route.destination
