@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, ValidationError
 
 from app.config import Route
-from app.journeys import CANCELLED, is_fast, journey_minutes
+from app.journeys import CANCELLED, is_fast, journey_minutes, matches_fast_stops
 from app.models import BoardPage, NormalisedBoard
 from app.normalise import LONDON, departure_datetime
 from app.providers import DepartureProvider
@@ -94,11 +94,12 @@ def page_board(
     shown = []
     for service in candidates:
         if fast_only:
+            matches = matches_fast_stops(service, route)
             # Leave overflow fast rows unconsumed; consume intervening slow rows too.
-            if service.is_fast and len(shown) == route.page_size:
+            if matches and len(shown) == route.page_size:
                 break
             examined.append(service)
-            if service.is_fast:
+            if matches:
                 shown.append(service)
         else:
             if len(shown) == route.page_size:

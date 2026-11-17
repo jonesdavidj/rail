@@ -243,15 +243,17 @@ choices and the visual-review limits.
 
 Settings → edit journey sets **Fast means at most N intermediate stops**, 0–5,
 default 1. Existing config files acquire this default on load; return journeys
-copy the threshold. Fast excludes cancelled/destination-call-cancelled services,
-replacement buses and unknown stop counts. The green edge and explicit Fast pill
+copy the threshold. Fast only retains cancelled/destination-call-cancelled trains
+whose scheduled stops qualify, so disruption stays visible. Replacement buses and
+unknown stop counts are excluded. Cancelled trains keep their cancellation status
+without a Fast or Quickest badge. The green edge and explicit Fast pill
 leave destination colours unchanged. Journey minutes use both expected times
 when known, otherwise both planned; midnight wraps correctly. Quickest marks
 one non-cancelled minimum-duration journey on the displayed list (first on ties).
 
 All trains / Fast only is remembered per route on the device. `fast=1` on
 `/api/board` filters before paging without changing the ten-row/120-minute RDM
-request or its shared cache key. The cursor consumes intervening slow/cancelled
+request or its shared cache key. The cursor consumes intervening slow
 rows, leaving overflow fast rows for Later. Sparse and empty fast pages can
 continue paging; the scan stays inside the existing two-hour horizon. The button
 count is displayed fast rows out of rows examined for this page (All mode uses

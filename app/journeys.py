@@ -7,9 +7,13 @@ CANCELLED = {"cancelled", "part_cancelled"}
 
 
 def is_fast(service: Service, route: Route) -> bool:
+    return service.status not in CANCELLED and matches_fast_stops(service, route)
+
+
+def matches_fast_stops(service: Service, route: Route) -> bool:
+    """Match the scheduled stopping pattern even when a train is cancelled."""
     return (
-        service.status not in CANCELLED
-        and service.service_type == "train"
+        service.service_type == "train"
         and service.stop_count is not None
         and service.stop_count <= route.fast_max_stops
     )
