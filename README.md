@@ -185,6 +185,30 @@ validated pushes to main build and publish Docker Hub tags `main` and
 timeout. No Portainer webhook or automatic stack action is added. Watchtower may
 update containers tracking `main`; use an immutable SHA tag for deliberate releases.
 
+### Fixes and releases
+
+1. Open a GitHub issue with reproduction steps, expected behaviour and acceptance
+   criteria. Small fixes can use just a PR, but an issue helps track user reports.
+2. Implement on a branch with a focused offline regression test. Confirm the test
+   fails on the affected version and passes with the fix; run pytest and Ruff.
+3. Open a PR linking the issue with `Closes #number`. Describe behaviour changes,
+   verification and limitations. Review the diff and pass CI before merging.
+4. Wait for main CI to publish the merged commit's `sha-<7-character-commit>` image.
+   Merging can update deployments tracking `main` through Watchtower. Pin an
+   existing version or SHA in Portainer first if deployment must wait for approval.
+5. For compatible fixes, increment the patch version (for example `v1.0.0` to
+   `v1.0.1`). Run the **Release** workflow from main with that version. It promotes
+   the exact commit's published image and creates the matching Git tag; there is
+   no application source version to bump. Use a minor version for new features
+   and a major version for breaking changes once on v1 or later.
+6. After the workflow succeeds, publish GitHub release notes against its existing
+   tag, listing resolved issues and any limitations. The workflow creates the Git
+   and Docker tags, but does not create a GitHub Release entry.
+7. Set `RAIL_IMAGE_TAG` to the version in Portainer, pull and redeploy, then check
+   `/api/health` and the affected board behaviour. Verify the running image matches
+   the intended release. Roll back by restoring the previous version/SHA tag and
+   redeploying; preserve the `rail-data` volume.
+
 First deployment:
 
 1. Create the `rail` Docker Hub repository and configure GitHub Actions secrets
@@ -241,17 +265,24 @@ choices and the visual-review limits.
 
 ## Fast trains
 
+Each displayed page is ordered by predicted departure, falling back to scheduled
+departure for cancellations or missing predictions. Ties use scheduled time and
+service ID. The feed window, walking allowance and Later trains page boundaries
+still use scheduled times; ordering is within each page, not across all pages.
+
 Settings → edit journey sets **Fast means at most N intermediate stops**, 0–5,
 default 1. Existing config files acquire this default on load; return journeys
-copy the threshold. Fast excludes cancelled/destination-call-cancelled services,
-replacement buses and unknown stop counts. The green edge and explicit Fast pill
+copy the threshold. Fast only retains cancelled/destination-call-cancelled trains
+whose scheduled stops qualify, so disruption stays visible. Replacement buses and
+unknown stop counts are excluded. Cancelled trains keep their cancellation status
+without a Fast or Quickest badge. The green edge and explicit Fast pill
 leave destination colours unchanged. Journey minutes use both expected times
 when known, otherwise both planned; midnight wraps correctly. Quickest marks
 one non-cancelled minimum-duration journey on the displayed list (first on ties).
 
 All trains / Fast only is remembered per route on the device. `fast=1` on
 `/api/board` filters before paging without changing the ten-row/120-minute RDM
-request or its shared cache key. The cursor consumes intervening slow/cancelled
+request or its shared cache key. The cursor consumes intervening slow
 rows, leaving overflow fast rows for Later. Sparse and empty fast pages can
 continue paging; the scan stays inside the existing two-hour horizon. The button
 count is displayed fast rows out of rows examined for this page (All mode uses

@@ -7,9 +7,9 @@ from datetime import datetime, timedelta
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, ValidationError
 
 from app.config import Route
-from app.journeys import CANCELLED, is_fast, journey_minutes
-from app.models import BoardPage, NormalisedBoard
-from app.normalise import LONDON, departure_datetime
+from app.journeys import CANCELLED, is_fast, journey_minutes, matches_fast_stops
+from app.models import BoardPage, NormalisedBoard, Service
+from app.normalise import LONDON, departure_datetime, minutes_between
 from app.providers import DepartureProvider
 from app.rail_data import BOARD_ROWS
 
@@ -94,11 +94,12 @@ def page_board(
     shown = []
     for service in candidates:
         if fast_only:
+            matches = matches_fast_stops(service, route)
             # Leave overflow fast rows unconsumed; consume intervening slow rows too.
-            if service.is_fast and len(shown) == route.page_size:
+            if matches and len(shown) == route.page_size:
                 break
             examined.append(service)
-            if service.is_fast:
+            if matches:
                 shown.append(service)
         else:
             if len(shown) == route.page_size:
@@ -153,6 +154,16 @@ def page_board(
             next_offset = max(
                 MIN_OFFSET, min(MAX_OFFSET, int((boundary.timestamp() - minute.timestamp()) // 60))
             )
+
+    def display_order(service: Service) -> tuple[datetime, datetime, str]:
+        planned = departure_datetime(service.planned, minute)
+        predicted = planned
+        if service.expected and service.status != "cancelled":
+            predicted += timedelta(minutes=minutes_between(service.planned, service.expected))
+        return predicted, planned, service.id
+
+    # Sort only after consuming scheduled rows and constructing their paging boundary.
+    shown.sort(key=display_order)
     return BoardPage(
         generated_at=board.generated_at,
         services=shown,
