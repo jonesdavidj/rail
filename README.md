@@ -185,6 +185,30 @@ validated pushes to main build and publish Docker Hub tags `main` and
 timeout. No Portainer webhook or automatic stack action is added. Watchtower may
 update containers tracking `main`; use an immutable SHA tag for deliberate releases.
 
+### Fixes and releases
+
+1. Open a GitHub issue with reproduction steps, expected behaviour and acceptance
+   criteria. Small fixes can use just a PR, but an issue helps track user reports.
+2. Implement on a branch with a focused offline regression test. Confirm the test
+   fails on the affected version and passes with the fix; run pytest and Ruff.
+3. Open a PR linking the issue with `Closes #number`. Describe behaviour changes,
+   verification and limitations. Review the diff and pass CI before merging.
+4. Wait for main CI to publish the merged commit's `sha-<7-character-commit>` image.
+   Merging can update deployments tracking `main` through Watchtower. Pin an
+   existing version or SHA in Portainer first if deployment must wait for approval.
+5. For compatible fixes, increment the patch version (for example `v1.0.0` to
+   `v1.0.1`). Run the **Release** workflow from main with that version. It promotes
+   the exact commit's published image and creates the matching Git tag; there is
+   no application source version to bump. Use a minor version for new features
+   and a major version for breaking changes once on v1 or later.
+6. After the workflow succeeds, publish GitHub release notes against its existing
+   tag, listing resolved issues and any limitations. The workflow creates the Git
+   and Docker tags, but does not create a GitHub Release entry.
+7. Set `RAIL_IMAGE_TAG` to the version in Portainer, pull and redeploy, then check
+   `/api/health` and the affected board behaviour. Verify the running image matches
+   the intended release. Roll back by restoring the previous version/SHA tag and
+   redeploying; preserve the `rail-data` volume.
+
 First deployment:
 
 1. Create the `rail` Docker Hub repository and configure GitHub Actions secrets
