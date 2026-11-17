@@ -241,6 +241,11 @@ choices and the visual-review limits.
 
 ## Fast trains
 
+Each displayed page is ordered by predicted departure, falling back to scheduled
+departure for cancellations or missing predictions. Ties use scheduled time and
+service ID. The feed window, walking allowance and Later trains page boundaries
+still use scheduled times; ordering is within each page, not across all pages.
+
 Settings → edit journey sets **Fast means at most N intermediate stops**, 0–5,
 default 1. Existing config files acquire this default on load; return journeys
 copy the threshold. Fast only retains cancelled/destination-call-cancelled trains

@@ -97,6 +97,28 @@ def test_paging_preserves_same_minute_boundary(now: datetime) -> None:
     assert [service.id for service in first.services + second.services] == list(map(str, range(10)))
 
 
+def test_predicted_departure_order_preserves_midnight_paging(now: datetime) -> None:
+    now = now.replace(hour=23, minute=45)
+    provider = DemoProvider()
+    route = defaults().routes[0].model_copy(update={"page_size": 4})
+    raw = {
+        "trainServices": [
+            {"serviceID": "late", "std": "23:50", "etd": "00:20"},
+            {"serviceID": "on-time", "std": "23:55", "etd": "On time"},
+            {"serviceID": "cancelled", "std": "23:56", "etd": "00:01", "isCancelled": True},
+            {"serviceID": "unknown-delay", "std": "23:57", "etd": "Delayed"},
+            {"serviceID": "next-page", "std": "00:02", "etd": "On time"},
+        ]
+    }
+    board = normalise_board(raw, "WAT", now)
+    first = page_board(board, route, 0, provider, now)
+    assert [s.id for s in first.services] == ["on-time", "cancelled", "unknown-delay", "late"]
+    cursor = read_cursor(first.next_cursor, route, now)
+    assert cursor.service_id == "unknown-delay"
+    second = page_board(board, route, cursor_offset(cursor, now), provider, now, cursor)
+    assert [s.id for s in second.services] == ["next-page"]
+
+
 def test_cursor_survives_minute_change_across_midnight(now: datetime) -> None:
     provider, route = DemoProvider(), defaults().routes[0]
     now = now.replace(hour=23, minute=50, second=50)
